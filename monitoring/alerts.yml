@@ -1,0 +1,27 @@
+groups:
+  - name: clinic-management
+    rules:
+      - alert: HostCpuUsageHigh
+        expr: 100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 90
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host CPU usage is above 90%
+          description: Host CPU usage has stayed above 90% for at least 3 minutes.
+
+      - alert: ClinicAppUnavailable
+        expr: up{job="clinic-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Clinic application metrics endpoint is unavailable
+
+      - alert: PostgreSQLExporterUnavailable
+        expr: up{job="postgresql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: PostgreSQL exporter is unavailable
