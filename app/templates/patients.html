@@ -1,90 +1,90 @@
-{% extends "base.html" %} {% block title %}Quản lý bệnh nhân - ClinicCare{%
-endblock %} {% block content %}
+{% extends "base.html" %}
+{% block title %}Bệnh nhân · ClinicCare{% endblock %}
+{% block breadcrumb %}Bệnh nhân{% endblock %}
+{% block content %}
 <section class="page-heading">
-  <h1>Quản lý bệnh nhân</h1>
-  <p>Quản lý hồ sơ và thông tin bệnh nhân trong phòng khám.</p>
+  <div>
+    <div class="eyebrow">Hồ sơ y tế</div>
+    <h1>Quản lý bệnh nhân</h1>
+    <p>Theo dõi hồ sơ và thông tin liên hệ của bệnh nhân.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="#them-benh-nhan"><svg class="icon"><use href="#i-plus"/></svg>Thêm bệnh nhân</a>
+  </div>
 </section>
 
-<section class="card">
-  <h2>+ Thêm bệnh nhân mới</h2>
-
-  <form method="post" action="{{ url_for('patients') }}">
+<section class="data-panel" id="them-benh-nhan">
+  <div class="data-panel-head">
+    <div><h2>Thêm hồ sơ mới</h2><p>Thông tin có dấu * là bắt buộc.</p></div>
+    <span class="badge">{{ patients|length }} hồ sơ</span>
+  </div>
+  <form class="create-form" method="post" action="{{ url_for('patients') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <div class="form-grid">
       <div class="form-group">
         <label for="full_name">Họ và tên *</label>
-        <input
-          id="full_name"
-          name="full_name"
-          maxlength="150"
-          required
-          placeholder="Nhập họ và tên bệnh nhân"
-        />
+        <input id="full_name" name="full_name" maxlength="150" required autocomplete="name" placeholder="Nhập họ và tên bệnh nhân" />
       </div>
-
       <div class="form-group">
         <label for="date_of_birth">Ngày sinh</label>
         <input id="date_of_birth" name="date_of_birth" type="date" />
       </div>
-
       <div class="form-group">
         <label for="phone">Số điện thoại</label>
-        <input
-          id="phone"
-          name="phone"
-          type="tel"
-          maxlength="20"
-          placeholder="Nhập số điện thoại"
-        />
+        <input id="phone" name="phone" type="tel" maxlength="20" autocomplete="tel" placeholder="Nhập số điện thoại" />
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit"><svg class="icon"><use href="#i-check"/></svg>Lưu hồ sơ</button>
       </div>
     </div>
-
-    <div class="form-actions">
-      <button class="btn" type="submit">Lưu bệnh nhân</button>
-    </div>
   </form>
-</section>
-
-<section class="card">
-  <h2>Danh sách bệnh nhân</h2>
-
   <div class="table-wrapper">
-    <table>
+    <table data-page-size="8">
       <thead>
-        <tr>
-          <th>Mã BN</th>
-          <th>Họ và tên</th>
-          <th>Ngày sinh</th>
-          <th>Số điện thoại</th>
-          <th>Thao tác</th>
-        </tr>
+        <tr><th>Mã hồ sơ</th><th>Bệnh nhân</th><th>Ngày sinh</th><th>Điện thoại</th><th>Thao tác</th></tr>
       </thead>
-
       <tbody>
         {% for p in patients %}
-        <tr>
-          <td>BN-{{ p.id }}</td>
-          <td>{{ p.full_name }}</td>
-          <td>{{ p.date_of_birth or 'Chưa cập nhật' }}</td>
-          <td>{{ p.phone or 'Chưa cập nhật' }}</td>
+        <tr class="filter-row">
+          <td><span class="table-id">BN-{{ "%04d"|format(p.id) }}</span></td>
+          <td><div class="person-cell"><div class="person-avatar">{{ p.full_name[:1] }}</div><div><strong>{{ p.full_name }}</strong><small>Hồ sơ bệnh nhân</small></div></div></td>
+          <td>{{ p.date_of_birth.strftime('%d/%m/%Y') if p.date_of_birth else '—' }}</td>
+          <td>{{ p.phone or '—' }}</td>
           <td>
-            <form
-              method="post"
-              action="{{ url_for('delete_patient', patient_id=p.id) }}"
-              onsubmit="return confirm('Bạn có chắc muốn xóa bệnh nhân này?');"
-            >
-              <button class="btn btn-danger" type="submit">Xóa</button>
-            </form>
+            <div class="table-actions">
+              <button class="btn btn-icon" type="button" data-open-modal="edit-patient-{{ p.id }}" aria-label="Sửa hồ sơ {{ p.full_name }}" title="Sửa hồ sơ"><svg class="icon"><use href="#i-edit"/></svg></button>
+              <form method="post" action="{{ url_for('delete_patient', patient_id=p.id) }}" data-confirm="Bạn có chắc muốn xóa hồ sơ bệnh nhân này?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button class="btn btn-icon danger" type="submit" aria-label="Xóa hồ sơ {{ p.full_name }}" title="Xóa hồ sơ"><svg class="icon"><use href="#i-trash"/></svg></button>
+              </form>
+            </div>
           </td>
         </tr>
         {% else %}
-        <tr>
-          <td colspan="5" class="empty-state">
-            Chưa có bệnh nhân. Hãy thêm bệnh nhân đầu tiên.
-          </td>
-        </tr>
+        <tr><td colspan="5"><div class="empty-state"><div class="empty-icon"><svg class="icon"><use href="#i-users"/></svg></div><strong>Chưa có hồ sơ bệnh nhân</strong><p>Thêm hồ sơ đầu tiên bằng biểu mẫu phía trên.</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% if patients %}
+  <div class="table-footer"><span class="table-count" aria-live="polite"></span><div class="pagination" aria-label="Phân trang danh sách bệnh nhân"></div></div>
+  {% endif %}
 </section>
+
+{% for p in patients %}
+<div class="modal-backdrop" id="edit-patient-{{ p.id }}" data-modal-backdrop>
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="patient-title-{{ p.id }}">
+    <div class="modal-head"><div><h2 id="patient-title-{{ p.id }}">Cập nhật hồ sơ</h2><p>Chỉnh sửa thông tin của {{ p.full_name }}.</p></div><button class="btn btn-icon" type="button" data-close-modal aria-label="Đóng"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <form class="modal-body" method="post" action="{{ url_for('edit_patient', patient_id=p.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="form-grid">
+        <div class="form-group full"><label for="patient-name-{{ p.id }}">Họ và tên *</label><input id="patient-name-{{ p.id }}" name="full_name" maxlength="150" required value="{{ p.full_name }}" /></div>
+        <div class="form-group"><label for="patient-dob-{{ p.id }}">Ngày sinh</label><input id="patient-dob-{{ p.id }}" name="date_of_birth" type="date" value="{{ p.date_of_birth.strftime('%Y-%m-%d') if p.date_of_birth else '' }}" /></div>
+        <div class="form-group"><label for="patient-phone-{{ p.id }}">Số điện thoại</label><input id="patient-phone-{{ p.id }}" name="phone" type="tel" maxlength="20" value="{{ p.phone or '' }}" /></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-light" type="button" data-close-modal>Hủy</button><button class="btn" type="submit">Lưu thay đổi</button></div>
+    </form>
+  </section>
+</div>
+{% endfor %}
 {% endblock %}

@@ -13,6 +13,9 @@ venv/
 *.key
 *.p12
 *.pfx
+*.crt
+*.cer
+nginx/certs/
 
 .DS_Store
 Thumbs.db

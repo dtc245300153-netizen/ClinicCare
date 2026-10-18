@@ -4,6 +4,38 @@
 PostgreSQL, Docker Compose và Nginx. Bộ giám sát gồm Prometheus, Grafana,
 Loki, Promtail, cAdvisor, Node Exporter và PostgreSQL Exporter.
 
+## Truy cập nhanh và tài khoản dịch vụ
+
+| Dịch vụ | Địa chỉ | Tài khoản | Mật khẩu |
+| --- | --- | --- | --- |
+| Website ClinicCare | <http://localhost:8082> | Không yêu cầu đăng nhập | Không áp dụng |
+| pgAdmin | <http://localhost:5050> | `clinicadmin@gmail.com` | `ClinicCare2026` |
+| Grafana | <http://localhost:3000> | `admin` | Giá trị `GRAFANA_ADMIN_PASSWORD` trong `.env` |
+| Prometheus | <http://localhost:9090> | Không yêu cầu đăng nhập | Không áp dụng |
+| PostgreSQL (đăng ký trong pgAdmin) | Host `db`, port `5432` | `clinic_runtime` (database `clinicdb`) | Giá trị `APP_DB_PASSWORD` trong `.env` |
+
+Mật khẩu pgAdmin trên máy hiện tại đã được đặt là `ClinicCare2026` và đã đăng
+nhập kiểm tra thành công. Mật khẩu này chỉ dùng cho môi trường demo local;
+hãy đổi trước khi mở dịch vụ ra mạng hoặc xuất bản README công khai. Grafana
+và PostgreSQL vẫn lấy mật khẩu riêng từ các biến tương ứng trong `.env`.
+
+Để kiểm tra hoặc cập nhật thông tin đăng nhập trên máy này, mở `.env`. Nếu
+muốn xem các biến mật khẩu còn lại trong PowerShell, chạy lệnh sau từ thư mục
+dự án; đừng chụp/chia sẻ đầu ra:
+
+```powershell
+$keys = 'PGADMIN_DEFAULT_EMAIL','PGADMIN_DEFAULT_PASSWORD','GRAFANA_ADMIN_USER','GRAFANA_ADMIN_PASSWORD','APP_DB_USER','APP_DB_PASSWORD','POSTGRES_DB'
+Get-Content .env | ForEach-Object {
+    if ($_ -match '^([^#=]+)=(.*)$' -and $keys -contains $matches[1]) {
+        if ($matches[1] -like '*PASSWORD') { '{0}=<đã cấu hình>' -f $matches[1] }
+        else { '{0}={1}' -f $matches[1], $matches[2] }
+    }
+}
+```
+
+Không gửi hoặc chụp lại đầu ra có mật khẩu; website truy cập được sau khi stack
+đã khởi động bằng `docker compose up -d`.
+
 > Mật khẩu và khóa bí mật chỉ được lưu trong `.env` tại máy chạy dự án.
 > Không đưa `.env` vào Git, ảnh chụp báo cáo hoặc nội dung gửi công khai.
 
@@ -49,14 +81,29 @@ clinic-management/
 │   ├── database.py
 │   ├── Dockerfile
 │   ├── requirements.txt
+│   ├── static/
+│   │   ├── cliniccare.css
+│   │   ├── cliniccare.js
+│   │   └── confirm-delete.js
 │   └── templates/
 │       ├── appointments.html
 │       ├── base.html
+│       ├── dashboard.html
 │       ├── doctors.html
 │       └── patients.html
 ├── database/
 │   ├── init.sql
 │   └── 02-create-runtime-roles.sql
+├── evidence/
+│   ├── 02-prometheus-targets.png
+│   ├── 03-pgadmin-login.png
+│   ├── 04-grafana-login.png
+│   ├── 05-grafana-home.png
+│   ├── 06-cliniccare-dashboard.png
+│   ├── 07-pgadmin-authenticated.png
+│   ├── 08-loki-explore.png
+│   ├── 09-loki-explore-results.png
+│   └── 10-cliniccare-dashboard-current.png
 ├── nginx/
 │   └── nginx.conf
 └── monitoring/
@@ -70,6 +117,19 @@ clinic-management/
             ├── dashboards/dashboards.yml
             └── datasources/datasources.yml
 ```
+
+## Giao diện ClinicCare
+
+- **Tổng quan** (`/dashboard`): tổng số bệnh nhân, bác sĩ, lịch khám, lịch
+  trong ngày; biểu đồ 7 ngày và thống kê trạng thái được truy vấn từ
+  PostgreSQL.
+- **Bệnh nhân** (`/patients`) và **Bác sĩ** (`/doctors`): thêm, tìm kiếm,
+  phân trang, sửa trong hộp thoại và xóa có xác nhận; dữ liệu vẫn dùng các
+  bảng hiện có.
+- **Lịch khám** (`/appointments`): tạo lịch, xem/sửa chi tiết, tìm kiếm,
+  phân trang và cập nhật trạng thái.
+- Bố cục co giãn trên desktop/điện thoại; stylesheet và JavaScript được phục
+  vụ từ `app/static/`, không thêm thư viện frontend hoặc thay framework Flask.
 
 ## Dịch vụ và địa chỉ
 
@@ -97,6 +157,24 @@ Các cổng host chỉ bind vào loopback (`127.0.0.1`), không chủ ý mở ra
 - Không ghi lại giá trị mật khẩu trong báo cáo. Nếu cần ảnh đăng nhập, che các
   trường thông tin xác thực.
 
+### Đăng ký PostgreSQL server trong pgAdmin
+
+Sau khi đăng nhập tại <http://localhost:5050>, chọn **Add New Server**.
+Trong tab **General**, đặt tên dễ nhận biết, ví dụ `ClinicCare PostgreSQL`.
+Trong tab **Connection**, nhập:
+
+| Trường pgAdmin | Giá trị |
+| --- | --- |
+| Host name/address | `db` |
+| Port | `5432` |
+| Maintenance database | Giá trị `POSTGRES_DB` trong `.env` |
+| Username | Giá trị `APP_DB_USER` trong `.env` |
+| Password | Giá trị `APP_DB_PASSWORD` trong `.env` |
+
+Chỉ đọc các giá trị từ `.env` cục bộ; không ghi chúng vào terminal dùng chung,
+ảnh chụp hoặc Git. Không cần publish cổng PostgreSQL ra host vì pgAdmin kết
+nối qua Docker network.
+
 ## Cài đặt và khởi động
 
 1. Cài Docker Desktop và bật Linux containers.
@@ -118,6 +196,11 @@ Các cổng host chỉ bind vào loopback (`127.0.0.1`), không chủ ý mở ra
 
 5. Chờ healthcheck của PostgreSQL và ứng dụng chuyển sang `healthy`, sau đó
    truy cập các địa chỉ trong bảng trên.
+
+Tạo `FLASK_SECRET_KEY` ngẫu nhiên mạnh cho môi trường thực tế; không chia sẻ
+giá trị đó hoặc đưa `.env` vào Git. Ứng dụng mặc định chạy HTTP local với
+`SESSION_COOKIE_SECURE=false`; đặt biến này thành `true` trong `.env` khi chạy
+qua HTTPS để chỉ gửi cookie qua kết nối bảo mật.
 
 Compose sẽ tạo/recreate các container khi cấu hình thay đổi; named volumes
 không bị xóa bởi `up -d --build`. File `database/init.sql` chỉ được PostgreSQL
@@ -156,30 +239,51 @@ Invoke-WebRequest http://localhost:9090/-/healthy
 ### Grafana
 
 Datasource Prometheus và Loki được provision tự động. Dashboard **ClinicCare -
-Overview** được provision trong folder **ClinicCare**. Nếu dashboard trống,
-kiểm tra trạng thái targets, thời gian chờ thu thập dữ liệu và log Grafana.
+Overview** được provision trong folder **ClinicCare**. CPU/RAM host, app,
+PostgreSQL và HTTP metrics có thể hiển thị. Trên Docker Desktop/Windows,
+cAdvisor hiện chỉ cung cấp cgroup tổng hợp của Linux VM (không có nhãn từng
+container); dashboard dùng tên panel **Docker VM cgroups** để phản ánh đúng
+phạm vi đo. Nếu dashboard trống, kiểm tra targets, thời gian thu thập và log.
 
 ### Loki và LogQL
 
-Promtail phát hiện container qua Docker socket; label `container` được lấy từ
-tên container thực tế (Compose project `clinic-management`) và label `service`
-được lấy từ nhãn Compose. Trong Grafana Explore, chọn datasource Loki và chạy:
+Promtail phát hiện container qua Docker socket; label `container` là tên
+container đầy đủ từ Docker (ví dụ `clinic-management-db-1`), `service` và
+`service_name` cùng lấy từ Docker Compose service label (ví dụ `db`), còn
+`project` là `clinic-management`. Chọn datasource Loki trong Grafana Explore.
+Để lọc database logs và tìm `error` không phân biệt hoa/thường, chạy:
 
 ```logql
-{container="clinic-management-app-1"}
-{container="clinic-management-nginx-1"} |= "error"
+{service_name="db"} |~ "(?i)error"
+```
+
+Tương đương theo tên container thực tế:
+
+```logql
 {container="clinic-management-db-1"} |~ "(?i)error"
 ```
 
-Các biểu thức trên đã được gọi qua Loki API trong lần kiểm tra hiện tại; xem
-kết quả thực tế ở bảng bằng chứng. Promtail được giới hạn vào Compose project
-`clinic-management`, không đọc log của project khác.
+`|~` áp dụng regex case-insensitive `(?i)` lên nội dung log. Promtail được
+giới hạn vào Compose project `clinic-management`, không đọc log của project
+khác. Truy vấn không có kết quả trong time range chỉ có nghĩa là không tìm
+thấy dòng khớp, không phải lỗi truy vấn.
 
 ```powershell
+docker compose exec promtail /usr/bin/promtail --check-syntax --config.file=/etc/promtail/promtail-config.yml
+docker compose config --quiet
+docker compose restart promtail
+docker compose ps promtail loki
 Invoke-WebRequest http://localhost:3100/ready
 Invoke-RestMethod http://localhost:3100/loki/api/v1/labels
 docker compose logs --tail 100 loki promtail
 ```
+
+Sau khi thêm label `service_name`, các lệnh trên đã được chạy; Promtail/Loki
+đang hoạt động. Loki trả `ready`, truy vấn `{service_name="db"}` trả
+`status=success` với 1 stream trong 24 giờ, còn hai truy vấn `error` ở trên
+trả `status=success` nhưng 0 stream khớp trong 24 giờ. Truy vấn app
+`{service_name="app"}` trả 1 stream sau một request kiểm tra HTTP. Không có
+dòng lỗi DB nào được tạo giả để làm cho query trả kết quả.
 
 ### Tình trạng bằng chứng đã chạy
 
@@ -188,16 +292,21 @@ docker compose logs --tail 100 loki promtail
 | Compose config cuối cùng | `docker compose config --quiet`: hợp lệ |
 | Stack | `docker compose up -d --build`: hoàn tất |
 | Website `/health`, `/patients`, `/doctors`, `/appointments` | HTTP 200; health báo database connected |
-| pgAdmin từ host | `/` và `/misc/ping`: HTTP 200; trang đăng nhập hiển thị |
+| Patient CRUD browser check | Tạo và đọc lại duy nhất bản ghi thử `VALIDATION-*`; hủy hộp thoại xác nhận giữ bản ghi; xác nhận xóa chỉ xóa bản ghi thử; truy vấn đếm sau cùng xác nhận không còn bản ghi `VALIDATION-*`; bản ghi bệnh nhân có trước vẫn còn |
+| pgAdmin từ host | `/` và `/misc/ping`: HTTP 200; đã đăng nhập; server DB chưa được đăng ký |
 | Prometheus | `/-/healthy`: HTTP 200; API kiểm tra 5/5 targets `UP` |
 | PostgreSQL exporter | `pg_up=1`; app/exporter role không phải superuser, exporter có `pg_monitor` |
 | Node Exporter | Target `UP`; 64 series CPU và 1 series RAM |
-| Grafana | `/api/health`: HTTP 200; datasource Loki/Prometheus và dashboard tìm thấy qua API; UI chưa xác minh |
+| Grafana | `/api/health`: HTTP 200; datasource Loki/Prometheus có health `OK`; dashboard UID `clinic-care-overview` tìm thấy qua API |
+| Grafana dashboard | Sau reload provisioning, browser hiển thị đủ 7 panel; host, app, PostgreSQL, HTTP và cgroup panels có dữ liệu. cAdvisor trả cgroup tổng hợp Docker VM, không phải từng container |
+| Grafana Explore | Đã mở datasource Loki, query selector app và xem được kết quả log; khi reload, plugin `grafana-lokiexplore-app` v1.0.39 trả lỗi preload do `react/jsx-runtime` HTTP 404 từ module plugin; chưa sửa |
 | Loki | `/ready`: HTTP 200 (`ready`) |
 | `{container="clinic-management-app-1"}` | Loki API `status=success`, 1 stream trong cửa sổ kiểm tra |
 | `{container="clinic-management-nginx-1"} |= "error"` | Loki API `status=success`, 0 stream trong cửa sổ kiểm tra |
 | `{container="clinic-management-db-1"} \|~ "(?i)error"` | Loki API `status=success`, 0 stream trong cửa sổ kiểm tra |
+| Loki Explore screenshots | Query app và kết quả logs đã chụp trong `evidence/08-loki-explore.png` và `evidence/09-loki-explore-results.png` |
 | Nginx headers | `nosniff`, `DENY`, `strict-origin-when-cross-origin` và CSP đã nhận |
+| CSP delete confirmation | Static script cùng nguồn hoạt động; trình duyệt hiện hộp xác nhận, dismiss giữ nguyên bản ghi; script được tải HTTP 200 |
 | HTTPS | Chưa cấu hình; môi trường hiện không có OpenSSL để tạo cert PEM cục bộ |
 
 ## Log, xử lý sự cố và dừng dịch vụ
@@ -255,6 +364,8 @@ docker compose up -d
   role riêng có quyền `pg_monitor`.
 - Flask chạy non-root; filesystem container chỉ đọc và `/tmp` là tmpfs ghi được.
 - Prometheus/Grafana/pgAdmin/Nginx/Loki chỉ publish trên loopback.
+- Certificate/key TLS tương lai được ignore (`nginx/certs/`, `*.crt`, `*.cer`,
+  `*.pem`, `*.key`, `*.p12`, `*.pfx`); vẫn cần kiểm tra `git status` trước commit.
 - Nginx bật `X-Content-Type-Options`, `X-Frame-Options`,
   `Referrer-Policy` và CSP; HTTP không bật HSTS vì chưa triển khai HTTPS.
 - Promtail cần Docker socket để phát hiện container. Socket cấp quyền điều khiển
@@ -266,8 +377,16 @@ docker compose up -d
 - Promtail đã hết vòng đời hỗ trợ upstream. Ở đây dùng theo yêu cầu bài tập;
   với triển khai mới cho production nên chuyển sang Grafana Alloy.
 - Chưa có HTTPS tự ký trong cấu hình này. Trên môi trường hiện tại không tìm
-  thấy OpenSSL để tạo chứng thư Nginx; trình duyệt cũng sẽ cảnh báo nếu chứng
-  thư tự ký chưa được trust. Không bật TLS với chứng thư không được kiểm chứng.
+  thấy listener TLS, chứng thư hoặc mount cert/key; HTTPS probe tới
+  `https://localhost:8082/health` thất bại còn HTTP trả 200. Để triển khai sau:
+  (1) tạo chứng thư có SAN `localhost` và private key bằng công cụ tin cậy như
+  `mkcert` hoặc OpenSSL; (2) lưu cert/key trong thư mục cục bộ bị `.gitignore`
+  loại trừ; (3) cấu hình Nginx listener 443 với `ssl_certificate` và
+  `ssl_certificate_key`, mount read-only; (4) publish loopback port, ví dụ
+  `127.0.0.1:8443:443`; (5) chạy `docker compose config --quiet`, recreate
+  Nginx và xác minh `https://localhost:8443/health`. Chỉ coi là TLS tin cậy
+  sau khi xác minh SAN/chuỗi chứng thư; không commit private key/certificate
+  bí mật.
 - Ở lần chạy Promtail đầu tiên, discovery chưa lọc Compose project và Loki đã
   nhận thử log từ project khác, đồng thời từ chối một số dòng quá cũ (HTTP 400).
   Đã thêm bộ lọc project; không xóa volume Loki, nên log đã lưu có thể còn đến
@@ -275,10 +394,11 @@ docker compose up -d
 - Trong lúc Compose thay container, Promtail cũng ghi một số lỗi chuyển tiếp
   khi Docker target cũ biến mất; target mới được phát hiện sau đó. Kiểm tra
   cuối không thấy log Promtail mới trong 90 giây.
-- Workspace hiện không có `.git`; chưa thể tạo commit hoặc kiểm tra trạng thái
-  Git. Các thông điệp commit bên dưới chỉ là gợi ý.
+## Lịch sử commit đã tạo
 
-## Nội dung ba commit đã tạo
+Nhánh `main` có ba commit theo các mốc bài tập. `git log --all` còn hiển thị
+hai ref checkpoint do môi trường agent tạo; chúng không phải commit giai đoạn
+triển khai. Không push ref nào khi chưa rà soát.
 
 1. `feat: deploy Flask app, PostgreSQL, pgAdmin and Nginx` — ứng dụng, schema,
    network, healthcheck và proxy.
@@ -290,42 +410,57 @@ docker compose up -d
 ## GitHub và lịch sử commit
 
 Repository Git local đã được khởi tạo trên nhánh `main`, `.env` bị ignore.
-Lịch sử gồm ba commit theo các mốc yêu cầu:
+Nhánh `main` có ba commit theo các mốc yêu cầu:
 
 1. `feat: deploy clinic app, PostgreSQL, pgAdmin and Nginx`
 2. `feat: add Prometheus and Grafana monitoring`
 3. `feat: add Loki log collection and harden services`
 
-**GitHub account/repository và remote chưa được tạo/cấu hình.** Chủ tài khoản
-cần tự đăng ký trên GitHub bằng mã số sinh viên nếu tên còn khả dụng, sau đó
-tạo repository (ví dụ `<MSSV>-clinic-management`) và kết nối bằng:
+**GitHub username theo MSSV dự kiến:** `dtc245300153` (chưa kiểm tra username
+còn khả dụng; không tạo tài khoản thay chủ tài khoản). Tạo repository
+`clinic-management` dưới tài khoản này tại GitHub. Workspace local hiện có ba
+commit trên nhánh `main`, nhưng chưa có remote và chưa push. Sau khi tự tạo
+repository, chạy:
 
 ```powershell
-git remote add origin https://github.com/<GITHUB_USERNAME>/<REPOSITORY>.git
-git push -u origin main
+git remote add origin https://github.com/dtc245300153/clinic-management.git
+git remote -v
 ```
 
-Không dùng access token trong URL hoặc commit token/password. Không push
-`.env`; kiểm tra bằng `git check-ignore .env` trước khi chia sẻ repository.
+Chỉ sau khi tự xác nhận rằng muốn xuất bản code, push bằng `git push -u origin
+main`. Không dùng access token trong URL hoặc commit token/password. `.env` bị
+ignore; kiểm tra bằng `git check-ignore .env` trước khi push.
+
+> **CẢNH BÁO: chưa được push repository/lịch sử hiện tại.** Commit thứ ba có
+> chứa ảnh website với thông tin nhận dạng bệnh nhân. Ảnh đã được bỏ khỏi thư
+> mục bằng chứng hiện tại và không được nhúng trong README/báo cáo, nhưng dữ
+> liệu vẫn nằm trong lịch sử commit local. Không thể loại bỏ ảnh khỏi lịch sử
+> chỉ bằng một commit xóa thông thường. Cần làm sạch/rewrite lịch sử trước khi
+> xuất bản; việc này chưa thực hiện để bảo toàn lịch sử hiện tại. Không push
+> cho đến khi lịch sử đã được xử lý và rà soát.
 
 ## Ảnh minh chứng cho báo cáo
 
 Ảnh trong `evidence/` được chụp từ giao diện local ngày 18/10/2026. Ảnh đăng
-nhập pgAdmin/Grafana chỉ chứng minh trang đăng nhập truy cập được; không chứng
-minh đã đăng nhập hoặc đã kết nối database/dashboard:
+nhập chỉ minh chứng trang đăng nhập dịch vụ quản trị đã được mở; ảnh
+authenticated/dashboard chứng minh trạng thái giao diện tương ứng, nhưng
+không chứng minh pgAdmin đã kết nối PostgreSQL:
 
 | Ảnh | Minh chứng | Trạng thái |
 | --- | --- | --- |
-| `evidence/01-cliniccare-patients.png` | Website qua Nginx | Đã chụp |
 | `evidence/02-prometheus-targets.png` | Giao diện Prometheus targets | Đã chụp; API xác nhận 5/5 UP |
-| `evidence/03-pgadmin-login.png` | Trang login pgAdmin | Đã chụp; đăng nhập/server registration chưa xác minh |
-| `evidence/04-grafana-login.png` | Trang login Grafana | Đã chụp; dashboard visual chưa xác minh |
-| Grafana dashboard / Explore | Cần ảnh sau đăng nhập | Chưa chụp |
-| `docker compose ps` / Nginx headers | Chụp terminal hoặc DevTools | Chưa chụp |
+| `evidence/03-pgadmin-login.png` | Trang login pgAdmin | Đã chụp |
+| `evidence/07-pgadmin-authenticated.png` | pgAdmin sau đăng nhập | Đã chụp; server DB chưa đăng ký |
+| `evidence/04-grafana-login.png` | Trang login Grafana | Đã chụp |
+| `evidence/06-cliniccare-dashboard.png` | Dashboard CPU/RAM host | Đã chụp trong browser |
+| `evidence/10-cliniccare-dashboard-current.png` | Dashboard đủ 7 panel sau reload | Đã chụp trong browser; metrics cAdvisor là cgroup Docker VM |
+| `evidence/08-loki-explore.png` | LogQL app selector trong Explore | Đã chụp |
+| `evidence/09-loki-explore-results.png` | Kết quả logs trong Explore | Đã chụp |
+| `docker compose ps` / Nginx headers | Chụp terminal hoặc DevTools | Chưa chụp riêng |
 
 Không dựng hoặc chỉnh sửa ảnh để thể hiện kết quả chưa có. Trước khi nộp, chụp
-pgAdmin sau khi đăng nhập và kết nối tới `db`, Grafana dashboard/Explore, cùng
-Compose status và response headers; che dữ liệu cá nhân, email và credential.
+pgAdmin sau khi đăng ký kết nối tới `db`, cùng Compose status và response
+headers; che dữ liệu cá nhân, email và credential.
 
 Ghi thời gian, URL, lệnh và kết quả thực tế cạnh mỗi ảnh trong
 `BAO-CAO-TRIEN-KHAI.md`.

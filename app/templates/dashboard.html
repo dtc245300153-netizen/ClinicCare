@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Tổng quan · ClinicCare{% endblock %}
+{% block breadcrumb %}Tổng quan{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div>
+    <div class="eyebrow">Bảng điều khiển</div>
+    <h1>Chào mừng trở lại</h1>
+    <p>Tổng quan hoạt động phòng khám và lịch hẹn của bạn.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-light" href="{{ url_for('appointments') }}"><svg class="icon"><use href="#i-calendar"/></svg>Xem lịch khám</a>
+    <a class="btn" href="{{ url_for('patients') }}"><svg class="icon"><use href="#i-plus"/></svg>Thêm bệnh nhân</a>
+  </div>
+</section>
+
+<section class="stats-grid" aria-label="Thống kê phòng khám">
+  <article class="stat-card">
+    <div class="stat-top"><span class="stat-label">Tổng bệnh nhân</span><span class="stat-icon"><svg class="icon"><use href="#i-users"/></svg></span></div>
+    <div class="stat-value">{{ patient_count }}</div><div class="stat-foot">Hồ sơ đang được quản lý</div>
+  </article>
+  <article class="stat-card">
+    <div class="stat-top"><span class="stat-label">Đội ngũ bác sĩ</span><span class="stat-icon mint"><svg class="icon"><use href="#i-stethoscope"/></svg></span></div>
+    <div class="stat-value">{{ doctor_count }}</div><div class="stat-foot">Bác sĩ trong hệ thống</div>
+  </article>
+  <article class="stat-card">
+    <div class="stat-top"><span class="stat-label">Tổng lịch khám</span><span class="stat-icon violet"><svg class="icon"><use href="#i-calendar"/></svg></span></div>
+    <div class="stat-value">{{ appointment_count }}</div><div class="stat-foot">Tất cả lịch hẹn đã ghi nhận</div>
+  </article>
+  <article class="stat-card">
+    <div class="stat-top"><span class="stat-label">Lịch khám hôm nay</span><span class="stat-icon amber"><svg class="icon"><use href="#i-clock"/></svg></span></div>
+    <div class="stat-value">{{ appointments_today }}</div><div class="stat-foot">Lịch hẹn trong ngày hiện tại</div>
+  </article>
+</section>
+
+<section class="dashboard-grid">
+  <article class="panel">
+    <div class="panel-heading">
+      <div><h2>Lịch khám theo thời gian</h2><p>Thống kê 7 ngày gần nhất · dữ liệu từ lịch hẹn</p></div>
+      <a class="panel-link" href="{{ url_for('appointments') }}">Chi tiết <svg class="icon"><use href="#i-arrow"/></svg></a>
+    </div>
+    <div class="chart-legend" aria-label="Chú giải biểu đồ">
+      <span class="legend-item"><span class="legend-dot"></span>Đã đặt</span>
+      <span class="legend-item"><span class="legend-dot complete"></span>Hoàn thành</span>
+      <span class="legend-item"><span class="legend-dot cancelled"></span>Đã hủy</span>
+    </div>
+    <div class="bar-chart" role="img" aria-label="Biểu đồ cột lịch khám theo ngày và trạng thái trong 7 ngày gần nhất">
+      {% for day in chart_days %}
+      <div class="chart-day {% if day.date == chart_days[-1].date %}today{% endif %}" title="{{ day.date.strftime('%d/%m/%Y') }}: {{ day.total }} lịch">
+        <span class="chart-count">{{ day.total }}</span>
+        <div class="chart-columns">
+          <div class="chart-stack">
+            <span class="chart-segment scheduled" style="height: {{ (day.scheduled / max_daily_count * 100)|round(0, 'ceil') }}%"></span>
+            <span class="chart-segment completed" style="height: {{ (day.completed / max_daily_count * 100)|round(0, 'ceil') }}%"></span>
+            <span class="chart-segment cancelled" style="height: {{ (day.cancelled / max_daily_count * 100)|round(0, 'ceil') }}%"></span>
+          </div>
+        </div>
+        <span class="chart-date">{{ day.label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="panel-heading"><div><h2>Trạng thái lịch hẹn</h2><p>Phân bổ trên toàn bộ lịch khám</p></div></div>
+    {% set total_statuses = status_counts.values()|sum %}
+    <div class="status-list">
+      <div class="status-row">
+        <span class="status-name"><span class="legend-dot"></span>Đã đặt</span><span class="status-number">{{ status_counts.get('scheduled', 0) }}</span>
+        <div class="status-track"><div class="status-fill" style="width: {{ (status_counts.get('scheduled', 0) / total_statuses * 100)|round(0, 'ceil') if total_statuses else 0 }}%"></div></div>
+      </div>
+      <div class="status-row">
+        <span class="status-name"><span class="legend-dot complete"></span>Hoàn thành</span><span class="status-number">{{ status_counts.get('completed', 0) }}</span>
+        <div class="status-track"><div class="status-fill complete" style="width: {{ (status_counts.get('completed', 0) / total_statuses * 100)|round(0, 'ceil') if total_statuses else 0 }}%"></div></div>
+      </div>
+      <div class="status-row">
+        <span class="status-name"><span class="legend-dot cancelled"></span>Đã hủy</span><span class="status-number">{{ status_counts.get('cancelled', 0) }}</span>
+        <div class="status-track"><div class="status-fill cancelled" style="width: {{ (status_counts.get('cancelled', 0) / total_statuses * 100)|round(0, 'ceil') if total_statuses else 0 }}%"></div></div>
+      </div>
+    </div>
+    {% if appointment_count == 0 %}
+    <div class="empty-state"><p>Biểu đồ sẽ cập nhật khi có lịch khám.</p></div>
+    {% endif %}
+  </article>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div><h2>Lịch hẹn sắp tới</h2><p>Các lịch đã đặt trong thời gian tới</p></div>
+    <a class="panel-link" href="{{ url_for('appointments') }}">Tất cả lịch khám <svg class="icon"><use href="#i-arrow"/></svg></a>
+  </div>
+  {% if upcoming_appointments %}
+  <div class="next-appointments">
+    {% for appointment in upcoming_appointments %}
+    <div class="upcoming-item">
+      <div class="date-tile">{{ appointment.appointment_time.strftime('%d') }}<br />{{ appointment.appointment_time.strftime('%m') }}</div>
+      <div class="upcoming-info"><strong>{{ appointment.patient.full_name }}</strong><span>{{ appointment.doctor.full_name }} · {{ appointment.doctor.specialty }}</span></div>
+      <span class="upcoming-time">{{ appointment.appointment_time.strftime('%H:%M') }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="empty-icon"><svg class="icon"><use href="#i-calendar"/></svg></div><strong>Chưa có lịch hẹn sắp tới</strong><p>Các lịch hẹn đã đặt sẽ xuất hiện tại đây.</p></div>
+  {% endif %}
+</section>
+{% endblock %}

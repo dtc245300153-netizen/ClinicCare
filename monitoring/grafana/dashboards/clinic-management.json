@@ -128,12 +128,12 @@
       },
       "targets": [
         {
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{image!=\"\"}[5m]))",
-          "legendFormat": "{{name}}",
+          "expr": "sum by (id) (rate(container_cpu_usage_seconds_total{id=~\"/docker(/.*)?\"}[5m]))",
+          "legendFormat": "{{id}}",
           "refId": "A"
         }
       ],
-      "title": "CPU containers",
+      "title": "CPU Docker VM cgroups",
       "type": "timeseries"
     },
     {
@@ -165,12 +165,12 @@
       },
       "targets": [
         {
-          "expr": "sum by (name) (container_memory_working_set_bytes{image!=\"\"})",
-          "legendFormat": "{{name}}",
+          "expr": "sum by (id) (container_memory_working_set_bytes{id=~\"/docker(/.*)?\"})",
+          "legendFormat": "{{id}}",
           "refId": "A"
         }
       ],
-      "title": "RAM containers",
+      "title": "RAM Docker VM cgroups",
       "type": "timeseries"
     },
     {
@@ -244,7 +244,7 @@
           "refId": "A"
         },
         {
-          "expr": "pg_stat_activity_count",
+          "expr": "sum(pg_stat_activity_count)",
           "legendFormat": "Kết nối PostgreSQL",
           "refId": "B"
         }

@@ -2,16 +2,32 @@
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from flask import Flask, render_template, request, redirect, url_for, flash
-from sqlalchemy import text
+from flask import (
+    Flask,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
+from sqlalchemy import func, text
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from flask_wtf.csrf import CSRFProtect
 
 from database import db, init_database
 
 app = Flask(__name__)
-app.secret_key = os.environ["FLASK_SECRET_KEY"]
+app.config.update(
+    SECRET_KEY=os.environ["FLASK_SECRET_KEY"],
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=(
+        os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
+    ),
+)
+csrf = CSRFProtect(app)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -115,7 +131,67 @@ def metrics():
 
 @app.get("/")
 def index():
-    return redirect(url_for("patients"))
+    return redirect(url_for("dashboard"))
+
+@app.get("/dashboard")
+def dashboard():
+    today = datetime.now().date()
+    today_start = datetime.combine(today, datetime.min.time())
+    tomorrow_start = today_start + timedelta(days=1)
+    week_start = today_start - timedelta(days=6)
+
+    daily_counts = {}
+    for appointment_date, status, count in (
+        db.session.query(
+            func.date(Appointment.appointment_time),
+            Appointment.status,
+            func.count(Appointment.id)
+        )
+        .filter(Appointment.appointment_time >= week_start)
+        .filter(Appointment.appointment_time < tomorrow_start)
+        .group_by(func.date(Appointment.appointment_time), Appointment.status)
+        .all()
+    ):
+        daily_counts.setdefault(appointment_date, {})[status] = count
+
+    chart_statuses = ("scheduled", "completed", "cancelled")
+    chart_days = []
+    for offset in range(7):
+        day = (week_start + timedelta(days=offset)).date()
+        counts = daily_counts.get(day, {})
+        chart_days.append({
+            "date": day,
+            "label": day.strftime("%d/%m"),
+            "scheduled": counts.get("scheduled", 0),
+            "completed": counts.get("completed", 0),
+            "cancelled": counts.get("cancelled", 0),
+            "total": sum(counts.get(status, 0) for status in chart_statuses)
+        })
+
+    appointments_today = Appointment.query.filter(
+        Appointment.appointment_time >= today_start,
+        Appointment.appointment_time < tomorrow_start
+    ).count()
+    upcoming_appointments = Appointment.query.filter(
+        Appointment.appointment_time >= datetime.now(),
+        Appointment.status == "scheduled"
+    ).order_by(Appointment.appointment_time.asc()).limit(5).all()
+
+    return render_template(
+        "dashboard.html",
+        patient_count=Patient.query.count(),
+        doctor_count=Doctor.query.count(),
+        appointment_count=Appointment.query.count(),
+        appointments_today=appointments_today,
+        chart_days=chart_days,
+        max_daily_count=max((day["total"] for day in chart_days), default=0) or 1,
+        status_counts=dict(
+            db.session.query(Appointment.status, func.count(Appointment.id))
+            .group_by(Appointment.status)
+            .all()
+        ),
+        upcoming_appointments=upcoming_appointments
+    )
 
 
 @app.route("/patients", methods=["GET", "POST"])
@@ -173,6 +249,34 @@ def delete_patient(patient_id):
     return redirect(url_for("patients"))
 
 
+@app.post("/patients/<int:patient_id>/edit")
+def edit_patient(patient_id):
+    patient = db.session.get(Patient, patient_id)
+    name = request.form.get("full_name", "").strip()
+    phone = request.form.get("phone", "").strip()
+    dob = request.form.get("date_of_birth", "").strip()
+
+    if not patient:
+        flash("Không tìm thấy bệnh nhân.", "error")
+    elif not name:
+        flash("Họ tên bệnh nhân là bắt buộc.", "error")
+    else:
+        try:
+            patient.full_name = name
+            patient.phone = phone or None
+            patient.date_of_birth = (
+                datetime.strptime(dob, "%Y-%m-%d").date() if dob else None
+            )
+            db.session.commit()
+            logger.info("Patient updated: id=%s", patient_id)
+            flash("Cập nhật bệnh nhân thành công.", "success")
+        except ValueError:
+            db.session.rollback()
+            flash("Ngày sinh không hợp lệ.", "error")
+
+    return redirect(url_for("patients"))
+
+
 @app.route("/doctors", methods=["GET", "POST"])
 def doctors():
     if request.method == "POST":
@@ -214,6 +318,28 @@ def delete_doctor(doctor_id):
 
         logger.info("Doctor deleted: id=%s", doctor_id)
         flash("Xóa bác sĩ thành công.", "success")
+
+    return redirect(url_for("doctors"))
+
+
+@app.post("/doctors/<int:doctor_id>/edit")
+def edit_doctor(doctor_id):
+    doctor = db.session.get(Doctor, doctor_id)
+    name = request.form.get("full_name", "").strip()
+    specialty = request.form.get("specialty", "").strip()
+    phone = request.form.get("phone", "").strip()
+
+    if not doctor:
+        flash("Không tìm thấy bác sĩ.", "error")
+    elif not name or not specialty:
+        flash("Họ tên và chuyên khoa là bắt buộc.", "error")
+    else:
+        doctor.full_name = name
+        doctor.specialty = specialty
+        doctor.phone = phone or None
+        db.session.commit()
+        logger.info("Doctor updated: id=%s", doctor_id)
+        flash("Cập nhật bác sĩ thành công.", "success")
 
     return redirect(url_for("doctors"))
 
@@ -292,5 +418,38 @@ def update_appointment_status(appointment_id):
             status
         )
         flash("Cập nhật trạng thái thành công.", "success")
+
+    return redirect(url_for("appointments"))
+
+
+@app.post("/appointments/<int:appointment_id>/edit")
+def edit_appointment(appointment_id):
+    appointment = db.session.get(Appointment, appointment_id)
+
+    try:
+        patient_id = int(request.form["patient_id"])
+        doctor_id = int(request.form["doctor_id"])
+        appointment_time = datetime.strptime(
+            request.form["appointment_time"],
+            "%Y-%m-%dT%H:%M"
+        )
+    except (ValueError, KeyError):
+        flash("Thông tin lịch khám không hợp lệ.", "error")
+        return redirect(url_for("appointments"))
+
+    if not appointment:
+        flash("Không tìm thấy lịch khám.", "error")
+    elif not db.session.get(Patient, patient_id):
+        flash("Không tìm thấy bệnh nhân.", "error")
+    elif not db.session.get(Doctor, doctor_id):
+        flash("Không tìm thấy bác sĩ.", "error")
+    else:
+        appointment.patient_id = patient_id
+        appointment.doctor_id = doctor_id
+        appointment.appointment_time = appointment_time
+        appointment.reason = request.form.get("reason", "").strip() or None
+        db.session.commit()
+        logger.info("Appointment updated: id=%s", appointment_id)
+        flash("Cập nhật lịch khám thành công.", "success")
 
     return redirect(url_for("appointments"))

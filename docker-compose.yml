@@ -30,6 +30,7 @@ services:
       DATABASE_URL: postgresql+psycopg://${APP_DB_USER}:${APP_DB_PASSWORD}@db:5432/${POSTGRES_DB}
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
       HOME: /tmp
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       TMPDIR: /tmp
     depends_on:
       db:

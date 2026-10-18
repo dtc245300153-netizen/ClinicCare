@@ -1,6 +1,7 @@
 
 Flask
 Flask-SQLAlchemy
+Flask-WTF>=1.2,<2
 psycopg[binary]
 gunicorn
 prometheus-client

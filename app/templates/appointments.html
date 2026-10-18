@@ -1,132 +1,93 @@
 {% extends "base.html" %}
-
-{% block title %}Quản lý lịch khám - ClinicCare{% endblock %}
-
+{% block title %}Lịch khám · ClinicCare{% endblock %}
+{% block breadcrumb %}Lịch khám{% endblock %}
 {% block content %}
 <section class="page-heading">
-  <h1>Quản lý lịch khám</h1>
-  <p>Đặt lịch khám, theo dõi bác sĩ và trạng thái lịch hẹn.</p>
+  <div>
+    <div class="eyebrow">Điều phối chăm sóc</div>
+    <h1>Quản lý lịch khám</h1>
+    <p>Đặt lịch, theo dõi lịch hẹn và cập nhật trạng thái khám.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="#dat-lich"><svg class="icon"><use href="#i-plus"/></svg>Đặt lịch mới</a>
+  </div>
 </section>
 
-<section class="card">
-  <h2>+ Đặt lịch khám mới</h2>
-
-  <form method="post" action="{{ url_for('appointments') }}">
+<section class="data-panel" id="dat-lich">
+  <div class="data-panel-head">
+    <div><h2>Tạo lịch hẹn</h2><p>Chọn bệnh nhân, bác sĩ và thời gian phù hợp.</p></div>
+    <span class="badge">{{ appointments|length }} lịch hẹn</span>
+  </div>
+  {% if patients and doctors %}
+  <form class="create-form" method="post" action="{{ url_for('appointments') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <div class="form-grid">
-      <div class="form-group">
-        <label for="patient_id">Bệnh nhân *</label>
-        <select id="patient_id" name="patient_id" required>
-          <option value="">-- Chọn bệnh nhân --</option>
-          {% for p in patients %}
-          <option value="{{ p.id }}">{{ p.full_name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="doctor_id">Bác sĩ *</label>
-        <select id="doctor_id" name="doctor_id" required>
-          <option value="">-- Chọn bác sĩ --</option>
-          {% for d in doctors %}
-          <option value="{{ d.id }}">
-            {{ d.full_name }} - {{ d.specialty }}
-          </option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="appointment_time">Ngày giờ khám *</label>
-        <input
-          id="appointment_time"
-          name="appointment_time"
-          type="datetime-local"
-          required
-        />
-      </div>
-
-      <div class="form-group">
-        <label for="reason">Lý do khám</label>
-        <input id="reason" name="reason" placeholder="Nhập lý do khám" />
-      </div>
-    </div>
-
-    <div class="form-actions">
-      <button class="btn" type="submit">Đặt lịch khám</button>
+      <div class="form-group"><label for="patient_id">Bệnh nhân *</label><select id="patient_id" name="patient_id" required><option value="">Chọn bệnh nhân</option>{% for p in patients %}<option value="{{ p.id }}">{{ p.full_name }} · BN-{{ "%04d"|format(p.id) }}</option>{% endfor %}</select></div>
+      <div class="form-group"><label for="doctor_id">Bác sĩ *</label><select id="doctor_id" name="doctor_id" required><option value="">Chọn bác sĩ</option>{% for d in doctors %}<option value="{{ d.id }}">{{ d.full_name }} · {{ d.specialty }}</option>{% endfor %}</select></div>
+      <div class="form-group"><label for="appointment_time">Ngày giờ khám *</label><input id="appointment_time" name="appointment_time" type="datetime-local" required /></div>
+      <div class="form-group"><label for="reason">Lý do khám</label><input id="reason" name="reason" maxlength="500" placeholder="Mô tả ngắn lý do khám" /></div>
+      <div class="form-actions"><button class="btn" type="submit"><svg class="icon"><use href="#i-calendar"/></svg>Xác nhận lịch hẹn</button></div>
     </div>
   </form>
-</section>
-
-<section class="card">
-  <h2>Danh sách lịch khám</h2>
-
+  {% else %}
+  <div class="empty-state"><div class="empty-icon"><svg class="icon"><use href="#i-calendar"/></svg></div><strong>Chưa thể tạo lịch hẹn</strong><p>Cần có ít nhất một bệnh nhân và một bác sĩ. Hãy bổ sung hồ sơ trước.</p></div>
+  {% endif %}
+  <div class="data-panel-head list-heading">
+    <div><h2>Danh sách lịch khám</h2><p>Quản lý lịch trình và trạng thái từng cuộc hẹn.</p></div>
+  </div>
   <div class="table-wrapper">
-    <table>
-      <thead>
-        <tr>
-          <th>Mã lịch</th>
-          <th>Bệnh nhân</th>
-          <th>Bác sĩ</th>
-          <th>Ngày giờ</th>
-          <th>Lý do</th>
-          <th>Trạng thái</th>
-          <th>Cập nhật</th>
-        </tr>
-      </thead>
-
+    <table data-page-size="8">
+      <thead><tr><th>Mã lịch</th><th>Bệnh nhân</th><th>Bác sĩ</th><th>Thời gian</th><th>Lý do</th><th>Trạng thái</th><th>Cập nhật</th><th></th></tr></thead>
       <tbody>
         {% for a in appointments %}
-        <tr>
-          <td>LK-{{ a.id }}</td>
-          <td>{{ a.patient.full_name }}</td>
-          <td>{{ a.doctor.full_name }}</td>
-          <td>{{ a.appointment_time.strftime('%d/%m/%Y %H:%M') }}</td>
-          <td>{{ a.reason or 'Chưa ghi' }}</td>
+        <tr class="filter-row">
+          <td><span class="table-id">LK-{{ "%04d"|format(a.id) }}</span></td>
+          <td><div class="person-cell"><div class="person-avatar">{{ a.patient.full_name[:1] }}</div><div><strong>{{ a.patient.full_name }}</strong><small>BN-{{ "%04d"|format(a.patient_id) }}</small></div></div></td>
+          <td><div class="person-cell"><div class="person-avatar doctor">{{ a.doctor.full_name[:1] }}</div><div><strong>{{ a.doctor.full_name }}</strong><small>{{ a.doctor.specialty }}</small></div></div></td>
+          <td><strong class="appointment-date">{{ a.appointment_time.strftime('%d/%m/%Y') }}</strong><small class="appointment-hour">{{ a.appointment_time.strftime('%H:%M') }}</small></td>
+          <td>{{ a.reason or '—' }}</td>
+          <td><span class="badge {{ a.status }}">{% if a.status == 'scheduled' %}Đã đặt{% elif a.status == 'completed' %}Hoàn thành{% else %}Đã hủy{% endif %}</span></td>
           <td>
-            {% if a.status == 'scheduled' %}
-            <span class="badge">Đã đặt</span>
-            {% elif a.status == 'completed' %}
-            <span class="badge">Hoàn thành</span>
-            {% else %}
-            <span class="badge">Đã hủy</span>
-            {% endif %}
-          </td>
-          <td>
-            <form
-              method="post"
-              action="{{ url_for('update_appointment_status', appointment_id=a.id) }}"
-            >
-              <select name="status" aria-label="Trạng thái lịch khám">
-                <option
-                  value="scheduled"
-                  {% if a.status == 'scheduled' %}selected{% endif %}
-                >
-                  Đã đặt
-                </option>
-                <option
-                  value="completed"
-                  {% if a.status == 'completed' %}selected{% endif %}
-                >
-                  Hoàn thành
-                </option>
-                <option
-                  value="cancelled"
-                  {% if a.status == 'cancelled' %}selected{% endif %}
-                >
-                  Đã hủy
-                </option>
+            <form class="status-form" method="post" action="{{ url_for('update_appointment_status', appointment_id=a.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <label class="sr-only" for="status-{{ a.id }}">Trạng thái lịch {{ a.id }}</label>
+              <select class="inline-select" id="status-{{ a.id }}" name="status">
+                <option value="scheduled" {% if a.status == 'scheduled' %}selected{% endif %}>Đã đặt</option>
+                <option value="completed" {% if a.status == 'completed' %}selected{% endif %}>Hoàn thành</option>
+                <option value="cancelled" {% if a.status == 'cancelled' %}selected{% endif %}>Đã hủy</option>
               </select>
-              <button class="btn" type="submit">Lưu</button>
+              <button class="btn btn-icon" type="submit" aria-label="Lưu trạng thái lịch {{ a.id }}" title="Lưu trạng thái"><svg class="icon"><use href="#i-check"/></svg></button>
             </form>
           </td>
+          <td><button class="btn btn-icon" type="button" data-open-modal="edit-appointment-{{ a.id }}" aria-label="Xem và sửa lịch {{ a.id }}" title="Xem chi tiết, chỉnh sửa"><svg class="icon"><use href="#i-eye"/></svg></button></td>
         </tr>
         {% else %}
-        <tr>
-          <td colspan="7" class="empty-state">Chưa có lịch khám nào.</td>
-        </tr>
+        <tr><td colspan="8"><div class="empty-state"><div class="empty-icon"><svg class="icon"><use href="#i-calendar"/></svg></div><strong>Chưa có lịch khám</strong><p>Tạo lịch hẹn đầu tiên bằng biểu mẫu phía trên.</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% if appointments %}
+  <div class="table-footer"><span class="table-count" aria-live="polite"></span><div class="pagination" aria-label="Phân trang lịch khám"></div></div>
+  {% endif %}
 </section>
+
+{% for a in appointments %}
+<div class="modal-backdrop" id="edit-appointment-{{ a.id }}" data-modal-backdrop>
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="appointment-title-{{ a.id }}">
+    <div class="modal-head"><div><div class="eyebrow">Chi tiết · LK-{{ "%04d"|format(a.id) }}</div><h2 id="appointment-title-{{ a.id }}">Thông tin lịch khám</h2><p>Chỉnh sửa nội dung lịch hẹn.</p></div><button class="btn btn-icon" type="button" data-close-modal aria-label="Đóng"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <form class="modal-body" method="post" action="{{ url_for('edit_appointment', appointment_id=a.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="form-grid">
+        <div class="form-group"><label for="edit-patient-{{ a.id }}">Bệnh nhân *</label><select id="edit-patient-{{ a.id }}" name="patient_id" required>{% for p in patients %}<option value="{{ p.id }}" {% if p.id == a.patient_id %}selected{% endif %}>{{ p.full_name }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label for="edit-doctor-{{ a.id }}">Bác sĩ *</label><select id="edit-doctor-{{ a.id }}" name="doctor_id" required>{% for d in doctors %}<option value="{{ d.id }}" {% if d.id == a.doctor_id %}selected{% endif %}>{{ d.full_name }} · {{ d.specialty }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label for="edit-time-{{ a.id }}">Ngày giờ khám *</label><input id="edit-time-{{ a.id }}" name="appointment_time" type="datetime-local" required value="{{ a.appointment_time.strftime('%Y-%m-%dT%H:%M') }}" /></div>
+        <div class="form-group"><label for="edit-reason-{{ a.id }}">Lý do khám</label><input id="edit-reason-{{ a.id }}" name="reason" maxlength="500" value="{{ a.reason or '' }}" /></div>
+        <div class="form-group full"><span class="form-help">Trạng thái hiện tại: {% if a.status == 'scheduled' %}Đã đặt{% elif a.status == 'completed' %}Hoàn thành{% else %}Đã hủy{% endif %}. Thay đổi trạng thái tại bảng lịch khám.</span></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-light" type="button" data-close-modal>Đóng</button><button class="btn" type="submit">Lưu thay đổi</button></div>
+    </form>
+  </section>
+</div>
+{% endfor %}
 {% endblock %}
