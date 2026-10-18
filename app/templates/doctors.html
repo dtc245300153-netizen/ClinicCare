@@ -1,0 +1,96 @@
+{% extends "base.html" %} {% block title %}Quản lý bác sĩ - ClinicCare{%
+endblock %} {% block content %}
+<section class="page-heading">
+  <h1>Quản lý bác sĩ</h1>
+  <p>Quản lý danh sách bác sĩ và chuyên khoa.</p>
+</section>
+
+<section class="card">
+  <h2>+ Thêm bác sĩ mới</h2>
+
+  <form method="post" action="{{ url_for('doctors') }}">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="full_name">Họ và tên *</label>
+        <input
+          id="full_name"
+          name="full_name"
+          maxlength="150"
+          required
+          placeholder="Nhập họ tên bác sĩ"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="specialty">Chuyên khoa *</label>
+        <input
+          id="specialty"
+          name="specialty"
+          maxlength="100"
+          required
+          placeholder="Ví dụ: Nội khoa"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="phone">Số điện thoại</label>
+        <input
+          id="phone"
+          name="phone"
+          maxlength="20"
+          type="tel"
+          placeholder="Nhập số điện thoại"
+        />
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn" type="submit">Lưu bác sĩ</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Danh sách bác sĩ</h2>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Mã BS</th>
+          <th>Họ và tên</th>
+          <th>Chuyên khoa</th>
+          <th>Số điện thoại</th>
+          <th>Thao tác</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for d in doctors %}
+        <tr>
+          <td>BS-{{ d.id }}</td>
+          <td>{{ d.full_name }}</td>
+          <td><span class="badge">{{ d.specialty }}</span></td>
+          <td>{{ d.phone or 'Chưa cập nhật' }}</td>
+          <td>
+            <form
+              method="post"
+              action="{{ url_for('delete_doctor', doctor_id=d.id) }}"
+              onsubmit="return confirm('Bạn có chắc muốn xóa bác sĩ này?');"
+            >
+              <button class="btn btn-danger" type="submit">Xóa</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty-state">
+            Chưa có bác sĩ trong hệ thống.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

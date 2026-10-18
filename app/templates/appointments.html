@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Quản lý lịch khám - ClinicCare{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <h1>Quản lý lịch khám</h1>
+  <p>Đặt lịch khám, theo dõi bác sĩ và trạng thái lịch hẹn.</p>
+</section>
+
+<section class="card">
+  <h2>+ Đặt lịch khám mới</h2>
+
+  <form method="post" action="{{ url_for('appointments') }}">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="patient_id">Bệnh nhân *</label>
+        <select id="patient_id" name="patient_id" required>
+          <option value="">-- Chọn bệnh nhân --</option>
+          {% for p in patients %}
+          <option value="{{ p.id }}">{{ p.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="doctor_id">Bác sĩ *</label>
+        <select id="doctor_id" name="doctor_id" required>
+          <option value="">-- Chọn bác sĩ --</option>
+          {% for d in doctors %}
+          <option value="{{ d.id }}">
+            {{ d.full_name }} - {{ d.specialty }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="appointment_time">Ngày giờ khám *</label>
+        <input
+          id="appointment_time"
+          name="appointment_time"
+          type="datetime-local"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="reason">Lý do khám</label>
+        <input id="reason" name="reason" placeholder="Nhập lý do khám" />
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn" type="submit">Đặt lịch khám</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Danh sách lịch khám</h2>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Mã lịch</th>
+          <th>Bệnh nhân</th>
+          <th>Bác sĩ</th>
+          <th>Ngày giờ</th>
+          <th>Lý do</th>
+          <th>Trạng thái</th>
+          <th>Cập nhật</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for a in appointments %}
+        <tr>
+          <td>LK-{{ a.id }}</td>
+          <td>{{ a.patient.full_name }}</td>
+          <td>{{ a.doctor.full_name }}</td>
+          <td>{{ a.appointment_time.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ a.reason or 'Chưa ghi' }}</td>
+          <td>
+            {% if a.status == 'scheduled' %}
+            <span class="badge">Đã đặt</span>
+            {% elif a.status == 'completed' %}
+            <span class="badge">Hoàn thành</span>
+            {% else %}
+            <span class="badge">Đã hủy</span>
+            {% endif %}
+          </td>
+          <td>
+            <form
+              method="post"
+              action="{{ url_for('update_appointment_status', appointment_id=a.id) }}"
+            >
+              <select name="status" aria-label="Trạng thái lịch khám">
+                <option
+                  value="scheduled"
+                  {% if a.status == 'scheduled' %}selected{% endif %}
+                >
+                  Đã đặt
+                </option>
+                <option
+                  value="completed"
+                  {% if a.status == 'completed' %}selected{% endif %}
+                >
+                  Hoàn thành
+                </option>
+                <option
+                  value="cancelled"
+                  {% if a.status == 'cancelled' %}selected{% endif %}
+                >
+                  Đã hủy
+                </option>
+              </select>
+              <button class="btn" type="submit">Lưu</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="empty-state">Chưa có lịch khám nào.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
