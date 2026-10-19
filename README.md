@@ -187,8 +187,10 @@ publish cổng PostgreSQL ra host vì pgAdmin kết nối qua Docker network.
    Copy-Item .env.example .env
    ```
 
-3. Thay các giá trị mẫu trong `.env` bằng email hợp lệ và mật khẩu/secret ngẫu
-   nhiên mạnh. Giữ nguyên `.env` cục bộ; không commit file này.
+3. Thay các giá trị mẫu trong `.env` bằng email hợp lệ và mật khẩu/secret
+   riêng biệt, được sinh ngẫu nhiên bằng trình quản lý mật khẩu (ít nhất 32
+   byte ngẫu nhiên cho mỗi secret). Không tái sử dụng mật khẩu giữa các dịch
+   vụ. Giữ nguyên `.env` cục bộ; không commit file này.
 4. Kiểm tra cấu hình và khởi động:
 
    ```powershell
@@ -375,10 +377,22 @@ docker compose up -d
 ## Hardening và giới hạn đã biết
 
 - `.env` bị loại khỏi Git bởi `.gitignore`; `.env.example` chỉ có placeholders.
+- Mỗi mật khẩu database/exporter/pgAdmin/Grafana và Flask secret cần được thay
+  bằng giá trị ngẫu nhiên riêng, tối thiểu 32 byte; thay đổi `.env` không tự
+  đổi password của database đã khởi tạo. Không ghi credential ra log hoặc Git.
 - PostgreSQL không publish cổng host. Dịch vụ chỉ giao tiếp qua network nội bộ.
+- Network `frontend`, `backend` và `monitoring` là internal; cổng quản trị/
+  metrics cần truy cập từ host chỉ bind vào `127.0.0.1`.
 - Flask dùng role không-superuser chỉ có quyền CRUD; PostgreSQL Exporter dùng
   role riêng có quyền `pg_monitor`.
-- Flask chạy non-root; filesystem container chỉ đọc và `/tmp` là tmpfs ghi được.
+- Flask và Nginx chạy non-root. Filesystem của app, Nginx, exporters,
+  Prometheus, Loki, Promtail, Node Exporter và Grafana đặt read-only; dữ liệu
+  cần ghi chỉ nằm ở named volumes hoặc tmpfs. Các dịch vụ này bỏ Linux
+  capabilities; nơi phù hợp bật `no-new-privileges`.
+- pgAdmin, exporters, Prometheus, Loki, Node Exporter và Grafana chạy dưới
+  user không-root theo image. Promtail là ngoại lệ chạy root do Docker socket/
+  file log; PostgreSQL image cần quyền lúc khởi tạo và tự hạ quyền cho tiến
+  trình database.
 - Prometheus/Grafana/pgAdmin/Nginx/Loki chỉ publish trên loopback.
 - Certificate/key TLS tương lai được ignore (`nginx/certs/`, `*.crt`, `*.cer`,
   `*.pem`, `*.key`, `*.p12`, `*.pfx`); vẫn cần kiểm tra `git status` trước commit.
@@ -386,10 +400,18 @@ docker compose up -d
   `Referrer-Policy` và CSP; HTTP không bật HSTS vì chưa triển khai HTTPS.
 - Promtail cần Docker socket để phát hiện container. Socket cấp quyền điều khiển
   Docker daemon ở mức cao; Promtail chạy root để đọc log và discovery bị giới
-  hạn vào project này. Chỉ chạy trên máy tin cậy, không mở Docker API ra mạng.
+  hạn vào project này. Dù bỏ capabilities, quyền qua Docker socket vẫn rất cao.
+  Chỉ chạy trên máy tin cậy, không mở Docker API ra mạng.
 - cAdvisor cần đọc thông tin host/container; Node Exporter trên Docker Desktop
-  phản ánh Linux VM thay vì toàn bộ Windows host. cAdvisor ghi nhận thiếu
-  `/sys/class/dmi/id/product_name`, nhưng target vẫn `UP`.
+  phản ánh Linux VM thay vì toàn bộ Windows host. cAdvisor có quyền đọc các
+  mount host ở chế độ read-only; đây là ngoại lệ cần thiết cho giám sát.
+  cAdvisor ghi nhận thiếu `/sys/class/dmi/id/product_name`, nhưng target vẫn
+  `UP`.
+- Kiểm tra nhanh: `docker compose exec app id` và `docker compose exec nginx id`
+  phải hiện UID khác `0`; `docker inspect --format
+  '{{.HostConfig.ReadonlyRootfs}}' (docker compose ps -q nginx)` phải trả `true`.
+  Mở `.env` cục bộ để chắc chắn không còn giá trị mẫu; không in hoặc chia sẻ
+  nội dung file này.
 - Promtail đã hết vòng đời hỗ trợ upstream. Ở đây dùng theo yêu cầu bài tập;
   với triển khai mới cho production nên chuyển sang Grafana Alloy.
 - Chưa có HTTPS tự ký trong cấu hình này. Trên môi trường hiện tại không tìm
