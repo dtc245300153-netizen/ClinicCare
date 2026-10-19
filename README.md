@@ -9,15 +9,15 @@ Loki, Promtail, cAdvisor, Node Exporter và PostgreSQL Exporter.
 | Dịch vụ | Địa chỉ | Tài khoản | Mật khẩu |
 | --- | --- | --- | --- |
 | Website ClinicCare | <http://localhost:8082> | Không yêu cầu đăng nhập | Không áp dụng |
-| pgAdmin | <http://localhost:5050> | `clinicadmin@gmail.com` | `ClinicCare2026` |
+| pgAdmin | <http://localhost:5050> | Giá trị `PGADMIN_DEFAULT_EMAIL` trong `.env` | Giá trị `PGADMIN_DEFAULT_PASSWORD` trong `.env` |
 | Grafana | <http://localhost:3000> | `admin` | Giá trị `GRAFANA_ADMIN_PASSWORD` trong `.env` |
 | Prometheus | <http://localhost:9090> | Không yêu cầu đăng nhập | Không áp dụng |
 | PostgreSQL (đăng ký trong pgAdmin) | Host `db`, port `5432` | `clinic_runtime` (database `clinicdb`) | Giá trị `APP_DB_PASSWORD` trong `.env` |
 
-Mật khẩu pgAdmin trên máy hiện tại đã được đặt là `ClinicCare2026` và đã đăng
-nhập kiểm tra thành công. Mật khẩu này chỉ dùng cho môi trường demo local;
-hãy đổi trước khi mở dịch vụ ra mạng hoặc xuất bản README công khai. Grafana
-và PostgreSQL vẫn lấy mật khẩu riêng từ các biến tương ứng trong `.env`.
+Thông tin đăng nhập pgAdmin và PostgreSQL là hai bộ thông tin riêng. pgAdmin
+dùng `PGADMIN_DEFAULT_EMAIL`/`PGADMIN_DEFAULT_PASSWORD` để đăng nhập giao diện;
+kết nối database dùng `APP_DB_USER`/`APP_DB_PASSWORD`. Không ghi mật khẩu thật
+vào README, ảnh chụp hoặc Git.
 
 Để kiểm tra hoặc cập nhật thông tin đăng nhập trên máy này, mở `.env`. Nếu
 muốn xem các biến mật khẩu còn lại trong PowerShell, chạy lệnh sau từ thư mục
@@ -75,7 +75,6 @@ clinic-management/
 ├── .gitignore
 ├── docker-compose.yml
 ├── README.md
-├── BAO-CAO-TRIEN-KHAI.md
 ├── app/
 │   ├── app.py
 │   ├── database.py
@@ -152,7 +151,8 @@ Các cổng host chỉ bind vào loopback (`127.0.0.1`), không chủ ý mở ra
   `.env`. Khi đăng ký máy chủ PostgreSQL trong pgAdmin, nhập host `db`, port
   `5432`, database `POSTGRES_DB`. Tài khoản `APP_DB_USER` có quyền CRUD trong
   schema `public`; `POSTGRES_USER` có quyền quản trị cao hơn. Dùng app role cho
-  kết nối xem dữ liệu thông thường.
+  kết nối xem dữ liệu thông thường. Mật khẩu pgAdmin không phải mật khẩu
+  PostgreSQL.
 - Grafana: dùng `GRAFANA_ADMIN_USER` và `GRAFANA_ADMIN_PASSWORD` trong `.env`.
 - Không ghi lại giá trị mật khẩu trong báo cáo. Nếu cần ảnh đăng nhập, che các
   trường thông tin xác thực.
@@ -171,9 +171,12 @@ Trong tab **Connection**, nhập:
 | Username | Giá trị `APP_DB_USER` trong `.env` |
 | Password | Giá trị `APP_DB_PASSWORD` trong `.env` |
 
-Chỉ đọc các giá trị từ `.env` cục bộ; không ghi chúng vào terminal dùng chung,
-ảnh chụp hoặc Git. Không cần publish cổng PostgreSQL ra host vì pgAdmin kết
-nối qua Docker network.
+Nếu server đã được đăng ký, mở **Properties → Connection** để sửa các trường
+trên; không tạo thêm server trùng tên. Khi hộp thoại kết nối yêu cầu mật khẩu,
+nhập giá trị `APP_DB_PASSWORD` trong `.env` và chọn **Save Password** chỉ khi
+muốn lưu credential trong hồ sơ pgAdmin cục bộ. Chỉ đọc các giá trị từ `.env`
+cục bộ; không ghi chúng vào terminal dùng chung, ảnh chụp hoặc Git. Không cần
+publish cổng PostgreSQL ra host vì pgAdmin kết nối qua Docker network.
 
 ## Cài đặt và khởi động
 
@@ -293,14 +296,14 @@ dòng lỗi DB nào được tạo giả để làm cho query trả kết quả.
 | Stack | `docker compose up -d --build`: hoàn tất |
 | Website `/health`, `/patients`, `/doctors`, `/appointments` | HTTP 200; health báo database connected |
 | Patient CRUD browser check | Tạo và đọc lại duy nhất bản ghi thử `VALIDATION-*`; hủy hộp thoại xác nhận giữ bản ghi; xác nhận xóa chỉ xóa bản ghi thử; truy vấn đếm sau cùng xác nhận không còn bản ghi `VALIDATION-*`; bản ghi bệnh nhân có trước vẫn còn |
-| pgAdmin từ host | `/` và `/misc/ping`: HTTP 200; đã đăng nhập; server DB chưa được đăng ký |
+| pgAdmin và PostgreSQL | pgAdmin `/misc/ping`: HTTP 200; server `ClinicCare PostgreSQL` dùng host `db`, database `clinicdb`, role `clinic_runtime`; đăng nhập PostgreSQL từ network/container pgAdmin bằng `APP_DB_PASSWORD` thành công. Giao diện pgAdmin vẫn cần nhập mật khẩu khi mở kết nối; ảnh cũ chưa chứng minh session database trong UI. |
 | Prometheus | `/-/healthy`: HTTP 200; API kiểm tra 5/5 targets `UP` |
 | PostgreSQL exporter | `pg_up=1`; app/exporter role không phải superuser, exporter có `pg_monitor` |
 | Node Exporter | Target `UP`; 64 series CPU và 1 series RAM |
 | Grafana | `/api/health`: HTTP 200; datasource Loki/Prometheus có health `OK`; dashboard UID `clinic-care-overview` tìm thấy qua API |
 | Grafana dashboard | Sau reload provisioning, browser hiển thị đủ 7 panel; host, app, PostgreSQL, HTTP và cgroup panels có dữ liệu. cAdvisor trả cgroup tổng hợp Docker VM, không phải từng container |
 | Grafana Explore | Đã mở datasource Loki, query selector app và xem được kết quả log; khi reload, plugin `grafana-lokiexplore-app` v1.0.39 trả lỗi preload do `react/jsx-runtime` HTTP 404 từ module plugin; chưa sửa |
-| Loki | `/ready`: HTTP 200 (`ready`) |
+| Loki | `/ready`: HTTP 200 (`ready`); lần kiểm tra lặp lại sau một phản hồi 503 ban đầu trả 200, API labels hoạt động |
 | `{container="clinic-management-app-1"}` | Loki API `status=success`, 1 stream trong cửa sổ kiểm tra |
 | `{container="clinic-management-nginx-1"} |= "error"` | Loki API `status=success`, 0 stream trong cửa sổ kiểm tra |
 | `{container="clinic-management-db-1"} \|~ "(?i)error"` | Loki API `status=success`, 0 stream trong cửa sổ kiểm tra |
@@ -323,6 +326,12 @@ docker compose up -d
 - Không vào được pgAdmin: kiểm tra `PGADMIN_DEFAULT_EMAIL` có cú pháp email
   hợp lệ, `PGADMIN_DEFAULT_PASSWORD` không rỗng, xác nhận cổng host 5050 không
   bị chiếm; sau đó chạy `docker compose up -d --force-recreate pgadmin`.
+- pgAdmin báo `no password supplied` khi mở server PostgreSQL: trong
+  **Properties → Connection**, đặt host `db`, port `5432`, maintenance database
+  `POSTGRES_DB`, username `APP_DB_USER`. Khi được hỏi, nhập
+  `APP_DB_PASSWORD` (khác với mật khẩu đăng nhập pgAdmin). Lỗi này có thể xảy ra
+  nếu hồ sơ server lưu user cũ hoặc password chưa được nhập; không cần sửa hay
+  xóa database volume.
 - Đăng nhập pgAdmin không được sau khi đổi `.env`: pgAdmin có thể giữ cấu hình
   khởi tạo trong volume. Không xóa volume; kiểm tra log và xử lý thay đổi thông
   tin xác thực theo thủ tục quản trị pgAdmin.
@@ -394,50 +403,32 @@ docker compose up -d
 - Trong lúc Compose thay container, Promtail cũng ghi một số lỗi chuyển tiếp
   khi Docker target cũ biến mất; target mới được phát hiện sau đó. Kiểm tra
   cuối không thấy log Promtail mới trong 90 giây.
-## Lịch sử commit đã tạo
-
-Nhánh `main` có ba commit theo các mốc bài tập. `git log --all` còn hiển thị
-hai ref checkpoint do môi trường agent tạo; chúng không phải commit giai đoạn
-triển khai. Không push ref nào khi chưa rà soát.
-
-1. `feat: deploy Flask app, PostgreSQL, pgAdmin and Nginx` — ứng dụng, schema,
-   network, healthcheck và proxy.
-2. `feat: add Prometheus and Grafana monitoring` — exporters, scrape targets,
-   cảnh báo CPU và dashboard.
-3. `feat: add Loki log collection and harden services` — Loki/Promtail,
-   datasource, `.gitignore`, biến môi trường mẫu và hardening.
-
 ## GitHub và lịch sử commit
 
-Repository Git local đã được khởi tạo trên nhánh `main`, `.env` bị ignore.
-Nhánh `main` có ba commit theo các mốc yêu cầu:
+Repository hiện được cấu hình remote
+[`dtc245300153-netizen/ClinicCare`](https://github.com/dtc245300153-netizen/ClinicCare)
+trên nhánh `main`, đang theo dõi `origin/main`; `.env` bị ignore. Lịch sử hiện
+có bốn commit, trong đó ba commit triển khai đầu tiên tương ứng các mốc yêu cầu:
 
-1. `feat: deploy clinic app, PostgreSQL, pgAdmin and Nginx`
-2. `feat: add Prometheus and Grafana monitoring`
-3. `feat: add Loki log collection and harden services`
+1. `c83e140 feat: deploy clinic app, PostgreSQL, pgAdmin and Nginx`
+2. `09d839a feat: add Prometheus and Grafana monitoring`
+3. `c635ee4 feat: add Loki log collection and harden services`
+4. `35dea2d feat: update ClinicCare system`
 
-**GitHub username theo MSSV dự kiến:** `dtc245300153` (chưa kiểm tra username
-còn khả dụng; không tạo tài khoản thay chủ tài khoản). Tạo repository
-`clinic-management` dưới tài khoản này tại GitHub. Workspace local hiện có ba
-commit trên nhánh `main`, nhưng chưa có remote và chưa push. Sau khi tự tạo
-repository, chạy:
+**Lưu ý về tiêu chí tài khoản:** tên chủ repository hiện tại là
+`dtc245300153-netizen`, không phải chuỗi MSSV nguyên dạng. Nếu giảng viên yêu
+cầu username khớp tuyệt đối MSSV, cần xác nhận quy định và đổi tài khoản/
+repository theo quyền của chủ sở hữu; không thể tự tạo hoặc đổi tài khoản thay
+người dùng.
 
-```powershell
-git remote add origin https://github.com/dtc245300153/clinic-management.git
-git remote -v
-```
-
-Chỉ sau khi tự xác nhận rằng muốn xuất bản code, push bằng `git push -u origin
-main`. Không dùng access token trong URL hoặc commit token/password. `.env` bị
-ignore; kiểm tra bằng `git check-ignore .env` trước khi push.
-
-> **CẢNH BÁO: chưa được push repository/lịch sử hiện tại.** Commit thứ ba có
-> chứa ảnh website với thông tin nhận dạng bệnh nhân. Ảnh đã được bỏ khỏi thư
-> mục bằng chứng hiện tại và không được nhúng trong README/báo cáo, nhưng dữ
-> liệu vẫn nằm trong lịch sử commit local. Không thể loại bỏ ảnh khỏi lịch sử
-> chỉ bằng một commit xóa thông thường. Cần làm sạch/rewrite lịch sử trước khi
-> xuất bản; việc này chưa thực hiện để bảo toàn lịch sử hiện tại. Không push
-> cho đến khi lịch sử đã được xử lý và rà soát.
+**Cảnh báo riêng tư quan trọng:** ghi chú lịch sử dự án cho biết một commit cũ
+từng chứa ảnh giao diện có thông tin nhận dạng bệnh nhân. Việc xóa ảnh khỏi
+working tree không xóa ảnh khỏi lịch sử Git. Vì remote hiện đã được cấu hình,
+hãy kiểm tra lịch sử và repository GitHub trước khi nộp/chia sẻ. Nếu dữ liệu
+nhận dạng còn ở commit đã push, cần phối hợp chủ repo để loại bỏ bằng cách
+rewrite history và force-push có kiểm soát, đồng thời xử lý ảnh hưởng tới
+clone khác. Không đưa dữ liệu bệnh nhân thật vào ảnh minh chứng. Không lưu
+password/token trong Git; `.env` đang bị ignore.
 
 ## Ảnh minh chứng cho báo cáo
 
@@ -450,7 +441,7 @@ không chứng minh pgAdmin đã kết nối PostgreSQL:
 | --- | --- | --- |
 | `evidence/02-prometheus-targets.png` | Giao diện Prometheus targets | Đã chụp; API xác nhận 5/5 UP |
 | `evidence/03-pgadmin-login.png` | Trang login pgAdmin | Đã chụp |
-| `evidence/07-pgadmin-authenticated.png` | pgAdmin sau đăng nhập | Đã chụp; server DB chưa đăng ký |
+| `evidence/07-pgadmin-authenticated.png` | pgAdmin sau đăng nhập | Ảnh cũ, không chứng minh server PostgreSQL kết nối; cần chụp lại sau khi nhập `APP_DB_PASSWORD` |
 | `evidence/04-grafana-login.png` | Trang login Grafana | Đã chụp |
 | `evidence/06-cliniccare-dashboard.png` | Dashboard CPU/RAM host | Đã chụp trong browser |
 | `evidence/10-cliniccare-dashboard-current.png` | Dashboard đủ 7 panel sau reload | Đã chụp trong browser; metrics cAdvisor là cgroup Docker VM |
@@ -462,5 +453,5 @@ Không dựng hoặc chỉnh sửa ảnh để thể hiện kết quả chưa c�
 pgAdmin sau khi đăng ký kết nối tới `db`, cùng Compose status và response
 headers; che dữ liệu cá nhân, email và credential.
 
-Ghi thời gian, URL, lệnh và kết quả thực tế cạnh mỗi ảnh trong
-`BAO-CAO-TRIEN-KHAI.md`.
+Ghi thời gian, URL, lệnh và kết quả thực tế cạnh mỗi ảnh trong báo cáo nộp;
+không đưa thông tin định danh bệnh nhân hoặc credential vào ảnh.
