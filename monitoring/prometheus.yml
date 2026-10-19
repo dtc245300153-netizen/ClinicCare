@@ -17,6 +17,11 @@ scrape_configs:
       - targets:
           - app:5000
 
+  - job_name: nginx
+    static_configs:
+      - targets:
+          - nginx-exporter:9113
+
   - job_name: postgresql
     static_configs:
       - targets:

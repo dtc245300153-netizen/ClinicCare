@@ -141,7 +141,7 @@ clinic-management/
 | Loki API | <http://localhost:3100/ready> | API lưu trữ log |
 | Flask trực tiếp | Không publish | Chỉ truy cập nội bộ qua Nginx/Prometheus |
 | PostgreSQL | Không publish | Chỉ truy cập qua network `backend` |
-| Exporters | Không publish | Chỉ Prometheus truy cập trên network nội bộ |
+| Exporters | Không publish | Nginx, PostgreSQL, host và container metrics; Prometheus truy cập trên network nội bộ |
 
 Các cổng host chỉ bind vào loopback (`127.0.0.1`), không chủ ý mở ra mạng LAN.
 
@@ -231,7 +231,9 @@ HTTP 503. Nginx cần trả các header `X-Content-Type-Options`,
 ### Prometheus
 
 Mở <http://localhost:9090/targets> và kiểm tra các job `prometheus`,
-`clinic-app`, `postgresql`, `cadvisor` và `node-exporter` có trạng thái `UP`.
+`clinic-app`, `nginx`, `postgresql`, `cadvisor` và `node-exporter` có trạng
+thái `UP`. Nginx Exporter đọc endpoint `stub_status` chỉ mở trong Docker
+network; hai panel Nginx trong dashboard hiển thị kết nối và request/giây.
 Có thể kiểm tra API:
 
 ```powershell
@@ -242,8 +244,8 @@ Invoke-WebRequest http://localhost:9090/-/healthy
 ### Grafana
 
 Datasource Prometheus và Loki được provision tự động. Dashboard **ClinicCare -
-Overview** được provision trong folder **ClinicCare**. CPU/RAM host, app,
-PostgreSQL và HTTP metrics có thể hiển thị. Trên Docker Desktop/Windows,
+Overview** được provision trong folder **ClinicCare**. CPU/RAM host, container,
+Nginx, app, PostgreSQL và HTTP metrics có thể hiển thị. Trên Docker Desktop/Windows,
 cAdvisor hiện chỉ cung cấp cgroup tổng hợp của Linux VM (không có nhãn từng
 container); dashboard dùng tên panel **Docker VM cgroups** để phản ánh đúng
 phạm vi đo. Nếu dashboard trống, kiểm tra targets, thời gian thu thập và log.
@@ -254,16 +256,22 @@ Promtail phát hiện container qua Docker socket; label `container` là tên
 container đầy đủ từ Docker (ví dụ `clinic-management-db-1`), `service` và
 `service_name` cùng lấy từ Docker Compose service label (ví dụ `db`), còn
 `project` là `clinic-management`. Chọn datasource Loki trong Grafana Explore.
-Để lọc database logs và tìm `error` không phân biệt hoa/thường, chạy:
+Chọn khoảng thời gian phù hợp rồi chạy các truy vấn LogQL mẫu:
 
 ```logql
-{service_name="db"} |~ "(?i)error"
+{service_name="nginx"}
 ```
 
-Tương đương theo tên container thực tế:
+Tìm cảnh báo/lỗi trong log ứng dụng:
 
 ```logql
-{container="clinic-management-db-1"} |~ "(?i)error"
+{service_name="app"} |~ "(?i)error|exception|traceback"
+```
+
+Tìm lỗi PostgreSQL:
+
+```logql
+{service_name="db"} |~ "(?i)error|fatal|panic"
 ```
 
 `|~` áp dụng regex case-insensitive `(?i)` lên nội dung log. Promtail được
@@ -282,11 +290,9 @@ docker compose logs --tail 100 loki promtail
 ```
 
 Sau khi thêm label `service_name`, các lệnh trên đã được chạy; Promtail/Loki
-đang hoạt động. Loki trả `ready`, truy vấn `{service_name="db"}` trả
-`status=success` với 1 stream trong 24 giờ, còn hai truy vấn `error` ở trên
-trả `status=success` nhưng 0 stream khớp trong 24 giờ. Truy vấn app
-`{service_name="app"}` trả 1 stream sau một request kiểm tra HTTP. Không có
-dòng lỗi DB nào được tạo giả để làm cho query trả kết quả.
+đang hoạt động. Cả ba truy vấn LogQL mẫu trả `status=success`. Truy vấn log
+Nginx và app có thể trả kết quả; truy vấn lỗi chỉ trả dòng nào thực sự khớp
+trong khoảng thời gian chọn, nên kết quả rỗng không đồng nghĩa với lỗi truy vấn.
 
 ### Tình trạng bằng chứng đã chạy
 
@@ -297,16 +303,17 @@ dòng lỗi DB nào được tạo giả để làm cho query trả kết quả.
 | Website `/health`, `/patients`, `/doctors`, `/appointments` | HTTP 200; health báo database connected |
 | Patient CRUD browser check | Tạo và đọc lại duy nhất bản ghi thử `VALIDATION-*`; hủy hộp thoại xác nhận giữ bản ghi; xác nhận xóa chỉ xóa bản ghi thử; truy vấn đếm sau cùng xác nhận không còn bản ghi `VALIDATION-*`; bản ghi bệnh nhân có trước vẫn còn |
 | pgAdmin và PostgreSQL | pgAdmin `/misc/ping`: HTTP 200; server `ClinicCare PostgreSQL` dùng host `db`, database `clinicdb`, role `clinic_runtime`; đăng nhập PostgreSQL từ network/container pgAdmin bằng `APP_DB_PASSWORD` thành công. Giao diện pgAdmin vẫn cần nhập mật khẩu khi mở kết nối; ảnh cũ chưa chứng minh session database trong UI. |
-| Prometheus | `/-/healthy`: HTTP 200; API kiểm tra 5/5 targets `UP` |
+| Prometheus | `/-/healthy`: HTTP 200; API kiểm tra 6/6 targets `UP`, gồm job `nginx` |
+| Nginx Exporter | Target `UP`; Prometheus trả series `nginx_connections_active` và `nginx_http_requests_total` |
 | PostgreSQL exporter | `pg_up=1`; app/exporter role không phải superuser, exporter có `pg_monitor` |
 | Node Exporter | Target `UP`; 64 series CPU và 1 series RAM |
 | Grafana | `/api/health`: HTTP 200; datasource Loki/Prometheus có health `OK`; dashboard UID `clinic-care-overview` tìm thấy qua API |
-| Grafana dashboard | Sau reload provisioning, browser hiển thị đủ 7 panel; host, app, PostgreSQL, HTTP và cgroup panels có dữ liệu. cAdvisor trả cgroup tổng hợp Docker VM, không phải từng container |
+| Grafana dashboard | Dashboard JSON hợp lệ với 9 panel; gồm host, container, Nginx, app, PostgreSQL và HTTP. cAdvisor trả cgroup tổng hợp Docker VM, không phải từng container |
 | Grafana Explore | Đã mở datasource Loki, query selector app và xem được kết quả log; khi reload, plugin `grafana-lokiexplore-app` v1.0.39 trả lỗi preload do `react/jsx-runtime` HTTP 404 từ module plugin; chưa sửa |
 | Loki | `/ready`: HTTP 200 (`ready`); lần kiểm tra lặp lại sau một phản hồi 503 ban đầu trả 200, API labels hoạt động |
-| `{container="clinic-management-app-1"}` | Loki API `status=success`, 1 stream trong cửa sổ kiểm tra |
-| `{container="clinic-management-nginx-1"} |= "error"` | Loki API `status=success`, 0 stream trong cửa sổ kiểm tra |
-| `{container="clinic-management-db-1"} \|~ "(?i)error"` | Loki API `status=success`, 0 stream trong cửa sổ kiểm tra |
+| `{container="clinic-management-app-1"}` | Loki API `status=success`, 1 stream trong cửa sổ 24 giờ |
+| `{container="clinic-management-nginx-1"} |= "error"` | Loki API `status=success`, không có dòng khớp trong cửa sổ 24 giờ |
+| `{container="clinic-management-db-1"} \|~ "(?i)error"` | Loki API `status=success`, 1 stream có 1 dòng khớp trong cửa sổ 24 giờ |
 | Loki Explore screenshots | Query app và kết quả logs đã chụp trong `evidence/08-loki-explore.png` và `evidence/09-loki-explore-results.png` |
 | Nginx headers | `nosniff`, `DENY`, `strict-origin-when-cross-origin` và CSP đã nhận |
 | CSP delete confirmation | Static script cùng nguồn hoạt động; trình duyệt hiện hộp xác nhận, dismiss giữ nguyên bản ghi; script được tải HTTP 200 |
@@ -408,12 +415,17 @@ docker compose up -d
 Repository hiện được cấu hình remote
 [`dtc245300153-netizen/ClinicCare`](https://github.com/dtc245300153-netizen/ClinicCare)
 trên nhánh `main`, đang theo dõi `origin/main`; `.env` bị ignore. Lịch sử hiện
-có bốn commit, trong đó ba commit triển khai đầu tiên tương ứng các mốc yêu cầu:
+có ba commit triển khai đầu tiên tương ứng các mốc yêu cầu, cùng các commit
+cập nhật tiếp theo:
 
 1. `c83e140 feat: deploy clinic app, PostgreSQL, pgAdmin and Nginx`
 2. `09d839a feat: add Prometheus and Grafana monitoring`
 3. `c635ee4 feat: add Loki log collection and harden services`
 4. `35dea2d feat: update ClinicCare system`
+5. `3b0b6ee docs: clarify ClinicCare deployment and GitHub status`
+
+Các cập nhật mới nhất hoàn thiện metrics riêng cho Nginx và ghi rõ ba truy vấn
+LogQL mẫu; xem commit mới nhất bằng `git log --oneline`.
 
 **Lưu ý về tiêu chí tài khoản:** tên chủ repository hiện tại là
 `dtc245300153-netizen`, không phải chuỗi MSSV nguyên dạng. Nếu giảng viên yêu
@@ -439,12 +451,12 @@ không chứng minh pgAdmin đã kết nối PostgreSQL:
 
 | Ảnh | Minh chứng | Trạng thái |
 | --- | --- | --- |
-| `evidence/02-prometheus-targets.png` | Giao diện Prometheus targets | Đã chụp; API xác nhận 5/5 UP |
+| `evidence/02-prometheus-targets.png` | Giao diện Prometheus targets | Ảnh cũ trước khi thêm Nginx Exporter (5/5); API hiện xác nhận 6/6 UP |
 | `evidence/03-pgadmin-login.png` | Trang login pgAdmin | Đã chụp |
 | `evidence/07-pgadmin-authenticated.png` | pgAdmin sau đăng nhập | Ảnh cũ, không chứng minh server PostgreSQL kết nối; cần chụp lại sau khi nhập `APP_DB_PASSWORD` |
 | `evidence/04-grafana-login.png` | Trang login Grafana | Đã chụp |
 | `evidence/06-cliniccare-dashboard.png` | Dashboard CPU/RAM host | Đã chụp trong browser |
-| `evidence/10-cliniccare-dashboard-current.png` | Dashboard đủ 7 panel sau reload | Đã chụp trong browser; metrics cAdvisor là cgroup Docker VM |
+| `evidence/10-cliniccare-dashboard-current.png` | Dashboard trước khi có hai panel Nginx | Ảnh cũ có 7 panel; dashboard hiện có 9 panel; cAdvisor là cgroup Docker VM |
 | `evidence/08-loki-explore.png` | LogQL app selector trong Explore | Đã chụp |
 | `evidence/09-loki-explore-results.png` | Kết quả logs trong Explore | Đã chụp |
 | `docker compose ps` / Nginx headers | Chụp terminal hoặc DevTools | Chưa chụp riêng |
