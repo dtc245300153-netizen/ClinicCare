@@ -380,6 +380,9 @@ docker compose up -d
 - Mỗi mật khẩu database/exporter/pgAdmin/Grafana và Flask secret cần được thay
   bằng giá trị ngẫu nhiên riêng, tối thiểu 32 byte; thay đổi `.env` không tự
   đổi password của database đã khởi tạo. Không ghi credential ra log hoặc Git.
+  Trên máy phát triển hiện tại, sáu giá trị secret đã được xoay sang 32 byte
+  ngẫu nhiên riêng; PostgreSQL roles, pgAdmin và Grafana đã được đồng bộ. Các
+  giá trị chỉ nằm trong `.env` local và không được commit.
 - PostgreSQL không publish cổng host. Dịch vụ chỉ giao tiếp qua network nội bộ.
 - Network `frontend`, `backend` và `monitoring` là internal; cổng quản trị/
   metrics cần truy cập từ host chỉ bind vào `127.0.0.1`.
@@ -392,7 +395,9 @@ docker compose up -d
 - pgAdmin, exporters, Prometheus, Loki, Node Exporter và Grafana chạy dưới
   user không-root theo image. Promtail là ngoại lệ chạy root do Docker socket/
   file log; PostgreSQL image cần quyền lúc khởi tạo và tự hạ quyền cho tiến
-  trình database.
+  trình database. pgAdmin cũng dùng một helper root bên cạnh web worker UID
+  5050; `no-new-privileges`/bỏ capabilities làm hỏng startup helper nên không
+  áp dụng cho pgAdmin.
 - Prometheus/Grafana/pgAdmin/Nginx/Loki chỉ publish trên loopback.
 - Certificate/key TLS tương lai được ignore (`nginx/certs/`, `*.crt`, `*.cer`,
   `*.pem`, `*.key`, `*.p12`, `*.pfx`); vẫn cần kiểm tra `git status` trước commit.
@@ -410,8 +415,22 @@ docker compose up -d
 - Kiểm tra nhanh: `docker compose exec app id` và `docker compose exec nginx id`
   phải hiện UID khác `0`; `docker inspect --format
   '{{.HostConfig.ReadonlyRootfs}}' (docker compose ps -q nginx)` phải trả `true`.
-  Mở `.env` cục bộ để chắc chắn không còn giá trị mẫu; không in hoặc chia sẻ
-  nội dung file này.
+  Để kiểm tra tất cả secret đạt 32 byte mà không in giá trị:
+
+  ```powershell
+  $keys = 'POSTGRES_PASSWORD','APP_DB_PASSWORD','POSTGRES_EXPORTER_PASSWORD','PGADMIN_DEFAULT_PASSWORD','FLASK_SECRET_KEY','GRAFANA_ADMIN_PASSWORD'
+  $values = @{}
+  Get-Content .env | ForEach-Object {
+      if ($_ -match '^([^#=]+)=(.*)$' -and $keys -contains $matches[1]) {
+          $values[$matches[1]] = $matches[2]
+      }
+  }
+  foreach ($key in $keys) {
+      '{0}: {1}' -f $key, $(if ($values[$key] -match '^[0-9a-f]{64,}$') { 'OK' } else { 'CHECK' })
+  }
+  ```
+
+  Không in hoặc chia sẻ nội dung `.env`.
 - Promtail đã hết vòng đời hỗ trợ upstream. Ở đây dùng theo yêu cầu bài tập;
   với triển khai mới cho production nên chuyển sang Grafana Alloy.
 - Chưa có HTTPS tự ký trong cấu hình này. Trên môi trường hiện tại không tìm

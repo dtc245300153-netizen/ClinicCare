@@ -16,6 +16,8 @@ services:
       - ./database/02-create-runtime-roles.sql:/docker-entrypoint-initdb.d/02-create-runtime-roles.sql:ro
     networks:
       - backend
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test:
         ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
@@ -153,6 +155,11 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker:/var/lib/docker:ro
       - /dev/disk:/dev/disk:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m,mode=1777
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
     networks:
