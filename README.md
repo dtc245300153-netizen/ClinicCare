@@ -39,6 +39,55 @@ Không gửi hoặc chụp lại đầu ra có mật khẩu; website truy cập 
 > Mật khẩu và khóa bí mật chỉ được lưu trong `.env` tại máy chạy dự án.
 > Không đưa `.env` vào Git, ảnh chụp báo cáo hoặc nội dung gửi công khai.
 
+### LogQL nhanh
+
+Mở Grafana tại <http://localhost:3000>, chọn **Explore** rồi datasource
+**Loki**. Dán từng truy vấn vào ô query và nhấn **Run query**:
+
+```logql
+{service_name="nginx"}
+```
+
+```logql
+{service_name="app"} |~ "(?i)error|exception|traceback"
+```
+
+```logql
+{service_name="db"} |~ "(?i)error|fatal|panic"
+```
+
+Truy vấn lỗi chỉ hiện dòng khớp; không có kết quả không có nghĩa là truy vấn
+bị lỗi. Xem phần **Loki và LogQL** bên dưới để biết thêm về labels và log.
+
+## Checklist demo theo yêu cầu
+
+Toàn bộ ứng dụng và các dịch vụ phụ trợ được triển khai bằng Docker Compose.
+Từ thư mục dự án, kiểm tra cấu hình và khởi động stack:
+
+```powershell
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+```
+
+Trong buổi demo, lần lượt trình bày:
+
+1. **Website:** mở <http://localhost:8082> và giới thiệu các trang quản lý
+   bệnh nhân, bác sĩ, lịch khám.
+2. **Database tool:** đăng nhập pgAdmin tại <http://localhost:5050>, mở server
+   PostgreSQL và cho thấy database `clinicdb` cùng dữ liệu ứng dụng.
+3. **Grafana:** mở <http://localhost:3000>, vào dashboard **ClinicCare -
+   Overview** và giới thiệu metrics của ứng dụng, database, Nginx và hệ thống.
+4. **LogQL:** vào **Explore → Loki**, chạy ba truy vấn trong phần
+   **LogQL nhanh** ở phía trên README.
+5. **Hardening:** chỉ ra các cấu hình non-root, read-only filesystem,
+   `no-new-privileges`, giới hạn capabilities, network tách biệt, secrets trong
+   `.env` và security headers. Website hiện chạy HTTP trên localhost; HTTPS
+   chưa được cấu hình. Xem thêm phần **Hardening và giới hạn đã biết**.
+
+Thư mục [`evidence/`](evidence/) lưu ảnh minh chứng. Trước khi chụp hoặc chia sẻ,
+kiểm tra ảnh không để lộ mật khẩu, nội dung `.env` hay dữ liệu cá nhân.
+
 ## Kiến trúc
 
 ```mermaid
@@ -257,24 +306,9 @@ phạm vi đo. Nếu dashboard trống, kiểm tra targets, thời gian thu th�
 Promtail phát hiện container qua Docker socket; label `container` là tên
 container đầy đủ từ Docker (ví dụ `clinic-management-db-1`), `service` và
 `service_name` cùng lấy từ Docker Compose service label (ví dụ `db`), còn
-`project` là `clinic-management`. Chọn datasource Loki trong Grafana Explore.
-Chọn khoảng thời gian phù hợp rồi chạy các truy vấn LogQL mẫu:
-
-```logql
-{service_name="nginx"}
-```
-
-Tìm cảnh báo/lỗi trong log ứng dụng:
-
-```logql
-{service_name="app"} |~ "(?i)error|exception|traceback"
-```
-
-Tìm lỗi PostgreSQL:
-
-```logql
-{service_name="db"} |~ "(?i)error|fatal|panic"
-```
+`project` là `clinic-management`. Trong Grafana Explore, chọn datasource Loki
+và khoảng thời gian phù hợp; ba truy vấn mẫu nằm ở phần **LogQL nhanh** gần đầu
+README.
 
 `|~` áp dụng regex case-insensitive `(?i)` lên nội dung log. Promtail được
 giới hạn vào Compose project `clinic-management`, không đọc log của project
