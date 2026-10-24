@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Không đủ quyền · ClinicCare{% endblock %}
+{% block breadcrumb %}Không đủ quyền{% endblock %}
+{% block content %}
+<section class="panel access-denied">
+  <div class="eyebrow">Truy cập bị từ chối</div>
+  <h1>Bạn không có quyền thực hiện thao tác này</h1>
+  <p>Vai trò hiện tại không được phép truy cập trang hoặc chức năng này.</p>
+  <a class="btn" href="{{ url_for('dashboard') }}">Quay lại tổng quan</a>
+</section>
+{% endblock %}

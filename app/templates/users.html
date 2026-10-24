@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Tài khoản · ClinicCare{% endblock %}
+{% block breadcrumb %}Quản lý tài khoản{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div><div class="eyebrow">Quản trị hệ thống</div><h1>Quản lý tài khoản</h1><p>Tạo tài khoản nhân viên, thay đổi vai trò và quản lý trạng thái truy cập.</p></div>
+</section>
+
+<section class="data-panel user-create-panel">
+  <div class="data-panel-head"><div><h2>Tạo tài khoản nhân viên</h2><p>Mật khẩu ban đầu phải có ít nhất 12 ký tự.</p></div></div>
+  <form class="create-form" method="post" action="{{ url_for('create_user') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-grid">
+      <div class="form-group"><label for="new-username">Tên đăng nhập *</label><input id="new-username" name="username" required minlength="3" maxlength="80" pattern="[A-Za-z0-9_.-]+" autocomplete="off" /></div>
+      <div class="form-group"><label for="new-full-name">Họ và tên *</label><input id="new-full-name" name="full_name" required maxlength="150" /></div>
+      <div class="form-group"><label for="new-password">Mật khẩu ban đầu *</label><input id="new-password" name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password" /></div>
+      <div class="form-group"><label for="new-role">Vai trò *</label><select id="new-role" name="role" required><option value="Receptionist">Lễ tân</option><option value="Doctor">Bác sĩ</option><option value="Admin">Quản trị viên</option></select></div>
+      <div class="form-group"><label for="new-doctor">Hồ sơ bác sĩ</label><select id="new-doctor" name="doctor_id"><option value="">Không áp dụng</option>{% for doctor in doctors %}<option value="{{ doctor.id }}">{{ doctor.full_name }} · {{ doctor.specialty }}</option>{% endfor %}</select><span class="form-help">Bắt buộc khi chọn vai trò bác sĩ.</span></div>
+      <div class="form-actions"><button class="btn" type="submit">Tạo tài khoản</button></div>
+    </div>
+  </form>
+</section>
+
+<section class="data-panel user-list-panel">
+  <div class="data-panel-head"><div><h2>Tài khoản hiện có</h2><p>{{ users|length }} tài khoản</p></div></div>
+  <div class="table-wrapper">
+    <table class="user-table">
+      <thead><tr><th>Tài khoản</th><th>Vai trò / hồ sơ bác sĩ</th><th>Trạng thái</th><th>Thay đổi quyền và trạng thái</th></tr></thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td><div class="person-cell"><div class="person-avatar">{{ user.full_name[:1] }}</div><div><strong>{{ user.full_name }}</strong><small>{{ user.username }} · tạo {{ user.created_at.strftime('%d/%m/%Y') }}</small></div></div></td>
+          <td>{{ {'Admin': 'Quản trị viên', 'Doctor': 'Bác sĩ', 'Receptionist': 'Lễ tân'}[user.role] }}{% if user.doctor %}<small class="user-secondary">{{ user.doctor.full_name }} · {{ user.doctor.specialty }}</small>{% endif %}</td>
+          <td><span class="badge {{ 'completed' if user.is_active else 'cancelled' }}">{{ 'Đang hoạt động' if user.is_active else 'Đã khóa' }}</span></td>
+          <td>
+            <form class="user-update-form" method="post" action="{{ url_for('update_user', user_id=user.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <select name="role" aria-label="Vai trò của {{ user.username }}">
+                <option value="Admin" {% if user.role == 'Admin' %}selected{% endif %}>Quản trị viên</option>
+                <option value="Doctor" {% if user.role == 'Doctor' %}selected{% endif %}>Bác sĩ</option>
+                <option value="Receptionist" {% if user.role == 'Receptionist' %}selected{% endif %}>Lễ tân</option>
+              </select>
+              <select name="doctor_id" aria-label="Hồ sơ bác sĩ của {{ user.username }}">
+                <option value="">Không áp dụng</option>
+                {% for doctor in doctors %}<option value="{{ doctor.id }}" {% if user.doctor_id == doctor.id %}selected{% endif %}>{{ doctor.full_name }}</option>{% endfor %}
+              </select>
+              <select name="is_active" aria-label="Trạng thái của {{ user.username }}">
+                <option value="true" {% if user.is_active %}selected{% endif %}>Hoạt động</option>
+                <option value="false" {% if not user.is_active %}selected{% endif %}>Đã khóa</option>
+              </select>
+              <button class="btn btn-light" type="submit">Lưu</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4"><div class="empty-state"><strong>Chưa có tài khoản</strong><p>Tạo tài khoản đầu tiên bằng biểu mẫu phía trên.</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

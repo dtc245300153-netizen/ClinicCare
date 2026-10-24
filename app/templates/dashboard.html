@@ -10,7 +10,7 @@
   </div>
   <div class="page-actions">
     <a class="btn btn-light" href="{{ url_for('appointments') }}"><svg class="icon"><use href="#i-calendar"/></svg>Xem lịch khám</a>
-    <a class="btn" href="{{ url_for('patients') }}"><svg class="icon"><use href="#i-plus"/></svg>Thêm bệnh nhân</a>
+    {% if current_user.role in ['Admin', 'Receptionist'] %}<a class="btn" href="{{ url_for('patients') }}"><svg class="icon"><use href="#i-plus"/></svg>Thêm bệnh nhân</a>{% endif %}
   </div>
 </section>
 

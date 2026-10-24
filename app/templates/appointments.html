@@ -9,15 +9,18 @@
     <p>Đặt lịch, theo dõi lịch hẹn và cập nhật trạng thái khám.</p>
   </div>
   <div class="page-actions">
+    {% if current_user.role in ['Admin', 'Receptionist'] %}
     <a class="btn" href="#dat-lich"><svg class="icon"><use href="#i-plus"/></svg>Đặt lịch mới</a>
+    {% endif %}
   </div>
 </section>
 
 <section class="data-panel" id="dat-lich">
   <div class="data-panel-head">
-    <div><h2>Tạo lịch hẹn</h2><p>Chọn bệnh nhân, bác sĩ và thời gian phù hợp.</p></div>
+    <div><h2>{% if current_user.role == 'Doctor' %}Lịch khám được phân công{% else %}Tạo lịch hẹn{% endif %}</h2><p>{% if current_user.role == 'Doctor' %}Chỉ hiển thị lịch khám thuộc phạm vi của bạn.{% else %}Chọn bệnh nhân, bác sĩ và thời gian phù hợp.{% endif %}</p></div>
     <span class="badge">{{ appointments|length }} lịch hẹn</span>
   </div>
+  {% if current_user.role in ['Admin', 'Receptionist'] %}
   {% if patients and doctors %}
   <form class="create-form" method="post" action="{{ url_for('appointments') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
@@ -31,6 +34,7 @@
   </form>
   {% else %}
   <div class="empty-state"><div class="empty-icon"><svg class="icon"><use href="#i-calendar"/></svg></div><strong>Chưa thể tạo lịch hẹn</strong><p>Cần có ít nhất một bệnh nhân và một bác sĩ. Hãy bổ sung hồ sơ trước.</p></div>
+  {% endif %}
   {% endif %}
   <div class="data-panel-head list-heading">
     <div><h2>Danh sách lịch khám</h2><p>Quản lý lịch trình và trạng thái từng cuộc hẹn.</p></div>
@@ -48,16 +52,18 @@
           <td>{{ a.reason or '—' }}</td>
           <td><span class="badge {{ a.status }}">{% if a.status == 'scheduled' %}Đã đặt{% elif a.status == 'completed' %}Hoàn thành{% else %}Đã hủy{% endif %}</span></td>
           <td>
+            {% if (current_user.role == 'Admin') or (current_user.role == 'Receptionist' and a.status == 'scheduled') or (current_user.role == 'Doctor' and a.status == 'scheduled') %}
             <form class="status-form" method="post" action="{{ url_for('update_appointment_status', appointment_id=a.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <label class="sr-only" for="status-{{ a.id }}">Trạng thái lịch {{ a.id }}</label>
               <select class="inline-select" id="status-{{ a.id }}" name="status">
-                <option value="scheduled" {% if a.status == 'scheduled' %}selected{% endif %}>Đã đặt</option>
-                <option value="completed" {% if a.status == 'completed' %}selected{% endif %}>Hoàn thành</option>
+                {% if current_user.role != 'Doctor' %}<option value="scheduled" {% if a.status == 'scheduled' %}selected{% endif %}>Đã đặt</option>{% endif %}
+                {% if current_user.role in ['Admin', 'Doctor'] %}<option value="completed" {% if a.status == 'completed' %}selected{% endif %}>Hoàn thành</option>{% endif %}
                 <option value="cancelled" {% if a.status == 'cancelled' %}selected{% endif %}>Đã hủy</option>
               </select>
               <button class="btn btn-icon" type="submit" aria-label="Lưu trạng thái lịch {{ a.id }}" title="Lưu trạng thái"><svg class="icon"><use href="#i-check"/></svg></button>
             </form>
+            {% else %}<span class="muted">—</span>{% endif %}
           </td>
           <td><button class="btn btn-icon" type="button" data-open-modal="edit-appointment-{{ a.id }}" aria-label="Xem và sửa lịch {{ a.id }}" title="Xem chi tiết, chỉnh sửa"><svg class="icon"><use href="#i-eye"/></svg></button></td>
         </tr>
@@ -79,9 +85,15 @@
     <form class="modal-body" method="post" action="{{ url_for('edit_appointment', appointment_id=a.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <div class="form-grid">
+        {% if current_user.role == 'Doctor' %}
+        <div class="form-group"><label>Bệnh nhân</label><span class="form-help">{{ a.patient.full_name }}</span></div>
+        <div class="form-group"><label>Bác sĩ</label><span class="form-help">{{ a.doctor.full_name }} · {{ a.doctor.specialty }}</span></div>
+        <div class="form-group"><label>Ngày giờ khám</label><span class="form-help">{{ a.appointment_time.strftime('%d/%m/%Y %H:%M') }}</span></div>
+        {% else %}
         <div class="form-group"><label for="edit-patient-{{ a.id }}">Bệnh nhân *</label><select id="edit-patient-{{ a.id }}" name="patient_id" required>{% for p in patients %}<option value="{{ p.id }}" {% if p.id == a.patient_id %}selected{% endif %}>{{ p.full_name }}</option>{% endfor %}</select></div>
         <div class="form-group"><label for="edit-doctor-{{ a.id }}">Bác sĩ *</label><select id="edit-doctor-{{ a.id }}" name="doctor_id" required>{% for d in doctors %}<option value="{{ d.id }}" {% if d.id == a.doctor_id %}selected{% endif %}>{{ d.full_name }} · {{ d.specialty }}</option>{% endfor %}</select></div>
         <div class="form-group"><label for="edit-time-{{ a.id }}">Ngày giờ khám *</label><input id="edit-time-{{ a.id }}" name="appointment_time" type="datetime-local" required value="{{ a.appointment_time.strftime('%Y-%m-%dT%H:%M') }}" /></div>
+        {% endif %}
         <div class="form-group"><label for="edit-reason-{{ a.id }}">Lý do khám</label><input id="edit-reason-{{ a.id }}" name="reason" maxlength="500" value="{{ a.reason or '' }}" /></div>
         <div class="form-group full"><span class="form-help">Trạng thái hiện tại: {% if a.status == 'scheduled' %}Đã đặt{% elif a.status == 'completed' %}Hoàn thành{% else %}Đã hủy{% endif %}. Thay đổi trạng thái tại bảng lịch khám.</span></div>
       </div>

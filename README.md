@@ -8,7 +8,7 @@ Loki, Promtail, cAdvisor, Node Exporter và PostgreSQL Exporter.
 
 | Dịch vụ | Địa chỉ | Tài khoản | Mật khẩu |
 | --- | --- | --- | --- |
-| Website ClinicCare | <http://localhost:8082> | Không yêu cầu đăng nhập | Không áp dụng |
+| Website ClinicCare | <http://localhost:8082/login> | Tài khoản nhân viên được Admin cấp | Mật khẩu riêng của từng người dùng |
 | pgAdmin | <http://localhost:5050> | Giá trị `PGADMIN_DEFAULT_EMAIL` trong `.env` | Giá trị `PGADMIN_DEFAULT_PASSWORD` trong `.env` |
 | Grafana | <http://localhost:3000> | `admin` | Giá trị `GRAFANA_ADMIN_PASSWORD` trong `.env` |
 | Prometheus | <http://localhost:9090> | Không yêu cầu đăng nhập | Không áp dụng |
@@ -33,8 +33,9 @@ Get-Content .env | ForEach-Object {
 }
 ```
 
-Không gửi hoặc chụp lại đầu ra có mật khẩu; website truy cập được sau khi stack
-đã khởi động bằng `docker compose up -d`.
+Không gửi hoặc chụp lại đầu ra có mật khẩu. Website yêu cầu đăng nhập bằng tài
+khoản ClinicCare; tạo Admin đầu tiên theo hướng dẫn bên dưới sau khi chạy
+migration.
 
 > Mật khẩu và khóa bí mật chỉ được lưu trong `.env` tại máy chạy dự án.
 > Không đưa `.env` vào Git, ảnh chụp báo cáo hoặc nội dung gửi công khai.
@@ -72,8 +73,8 @@ docker compose ps
 
 Trong buổi demo, lần lượt trình bày:
 
-1. **Website:** mở <http://localhost:8082> và giới thiệu các trang quản lý
-   bệnh nhân, bác sĩ, lịch khám.
+1. **Website:** đăng nhập bằng tài khoản ClinicCare tại <http://localhost:8082>
+   và giới thiệu các trang được phép theo vai trò.
 2. **Database tool:** đăng nhập pgAdmin tại <http://localhost:5050>, mở server
    PostgreSQL và cho thấy database `clinicdb` cùng dữ liệu ứng dụng.
 3. **Grafana:** mở <http://localhost:3000>, vào dashboard **ClinicCare -
@@ -143,15 +144,24 @@ clinic-management/
 │   ├── init.sql
 │   └── 02-create-runtime-roles.sql
 ├── evidence/
-│   ├── 02-prometheus-targets.png
-│   ├── 03-pgadmin-login.png
-│   ├── 04-grafana-login.png
-│   ├── 05-grafana-home.png
-│   ├── 06-cliniccare-dashboard.png
-│   ├── 07-pgadmin-authenticated.png
-│   ├── 08-loki-explore.png
-│   ├── 09-loki-explore-results.png
-│   └── 10-cliniccare-dashboard-current.png
+│   ├── 01-github-repository.png
+│   ├── 02-github-commit-history.png
+│   ├── 03-cliniccare-dashboard.png
+│   ├── 04-docker-compose-logs.png
+│   ├── 05-postgres-appointments-redacted.png
+│   ├── 06-nginx-proxy-headers.png
+│   ├── 07-http-response-headers.png
+│   ├── 08-cliniccare-devtools.png
+│   ├── 09-prometheus-targets.png
+│   ├── 10-grafana-overview.png
+│   ├── 11-grafana-prometheus-datasource.png
+│   ├── 12-grafana-cpu-alert-rule.png
+│   ├── 13-loki-explore-app.png
+│   ├── 14-postgres-exporter-error-redacted.png
+│   ├── 15-loki-nginx-logs.png
+│   ├── 16-compose-hardening-grafana.png
+│   ├── 17-docker-networks.png
+│   └── 18-app-nonroot-user.png
 ├── nginx/
 │   └── nginx.conf
 └── monitoring/
@@ -240,16 +250,26 @@ publish cổng PostgreSQL ra host vì pgAdmin kết nối qua Docker network.
    riêng biệt, được sinh ngẫu nhiên bằng trình quản lý mật khẩu (ít nhất 32
    byte ngẫu nhiên cho mỗi secret). Không tái sử dụng mật khẩu giữa các dịch
    vụ. Giữ nguyên `.env` cục bộ; không commit file này.
-4. Kiểm tra cấu hình và khởi động:
+4. Khởi động riêng PostgreSQL, áp dụng migration người dùng (an toàn khi chạy
+   lại, không xóa hoặc khởi tạo lại volume), rồi build và khởi động các service:
 
    ```powershell
    docker compose config --quiet
+   docker compose up -d db
+   docker compose exec -T db sh -c 'psql --set=ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --file /migrations/03-add-user-auth.sql'
    docker compose up -d --build
    docker compose ps
    ```
 
-5. Chờ healthcheck của PostgreSQL và ứng dụng chuyển sang `healthy`, sau đó
-   truy cập các địa chỉ trong bảng trên.
+5. Tạo tài khoản Admin đầu tiên bằng prompt ẩn mật khẩu (không truyền mật khẩu
+   trên command line hoặc ghi vào `.env`):
+
+   ```powershell
+   docker compose exec app flask --app app create-admin
+   ```
+
+   Sau đó đăng nhập tại <http://localhost:8082/login>. Chờ healthcheck của
+   PostgreSQL và ứng dụng chuyển sang `healthy`.
 
 Tạo `FLASK_SECRET_KEY` ngẫu nhiên mạnh cho môi trường thực tế; không chia sẻ
 giá trị đó hoặc đưa `.env` vào Git. Ứng dụng mặc định chạy HTTP local với
@@ -263,6 +283,48 @@ database đã tồn tại. Ứng dụng sử dụng role `APP_DB_USER` có quy�
 PostgreSQL Exporter dùng role riêng chỉ được cấp `pg_monitor`. Khi database
 đã tồn tại, cập nhật role cần được áp dụng tường minh bằng
 `database/02-create-runtime-roles.sql`; không xóa volume.
+
+### Đăng nhập và phân quyền
+
+Không có đăng ký công khai hoặc tài khoản/mật khẩu mặc định. Lệnh
+`flask --app app create-admin` hỏi username, họ tên và mật khẩu hai lần bằng
+prompt không hiển thị mật khẩu; mật khẩu tối thiểu 12 ký tự và chỉ lưu dưới
+dạng hash. Admin tạo và quản lý tài khoản nhân viên trong **Tài khoản**.
+
+| Vai trò | Quyền chính |
+| --- | --- |
+| Admin | Truy cập dashboard; quản lý bệnh nhân, bác sĩ, lịch khám và tài khoản; đổi vai trò, khóa/mở khóa tài khoản. Không thể hạ quyền hoặc khóa Admin cuối cùng. |
+| Doctor | Xem dashboard và lịch khám được phân công; xem thông tin bệnh nhân gắn với lịch của mình; cập nhật ghi chú và trạng thái lịch được giao. |
+| Receptionist | Thêm/tìm/xem/sửa bệnh nhân; xem bác sĩ; tạo và quản lý lịch khám; hủy lịch chưa hoàn thành. Không được xóa bệnh nhân/bác sĩ hoặc quản lý tài khoản. |
+
+Khi Admin tạo tài khoản Doctor, phải liên kết với một hồ sơ bác sĩ; mỗi hồ sơ
+chỉ được gắn một tài khoản Doctor. Backend kiểm tra quyền cho từng route và
+phạm vi lịch của bác sĩ, kể cả khi gửi request trực tiếp. Form POST, kể cả
+đăng nhập/đăng xuất, được bảo vệ bằng CSRF. Khóa tài khoản sẽ làm mất hiệu lực
+phiên ở request kế tiếp. `SESSION_COOKIE_SECURE=false` phù hợp HTTP local;
+chỉ bật `true` sau khi website được phục vụ thực sự qua HTTPS.
+
+#### Chạy kiểm thử Python không cần Docker
+
+Ứng dụng kiểm thử dùng SQLite trong bộ nhớ; lệnh sau không cần Docker, Docker
+Desktop, PostgreSQL đang chạy hoặc file `.env`. Cần cài `uv` và Python; chạy từ
+thư mục `app`:
+
+```powershell
+Set-Location app
+uv run --no-project --with-requirements requirements.txt python -m unittest discover -s tests -v
+```
+
+`uv` tự tải các thư viện Python khai báo trong `requirements.txt` vào môi
+trường tạm, không sửa file dependency của dự án. Kết quả test này xác minh
+luồng ứng dụng với SQLite cô lập; nó không thay thế kiểm thử migration trên
+PostgreSQL hoặc kiểm thử toàn bộ stack Docker.
+
+Chạy bộ kiểm thử trong container (sau khi build và khởi động stack):
+
+```powershell
+docker compose exec app python -m unittest discover -s tests -v
+```
 
 ## Xác minh
 
@@ -336,7 +398,8 @@ trong khoảng thời gian chọn, nên kết quả rỗng không đồng nghĩa
 | --- | --- |
 | Compose config cuối cùng | `docker compose config --quiet`: hợp lệ |
 | Stack | `docker compose up -d --build`: hoàn tất |
-| Website `/health`, `/patients`, `/doctors`, `/appointments` | HTTP 200; health báo database connected |
+| Website trước khi bật đăng nhập | Các trang `/patients`, `/doctors`, `/appointments` từng trả HTTP 200 trong lần kiểm tra baseline. Hiện các trang quản lý yêu cầu đăng nhập; cần kiểm tra lại sau khi áp dụng migration và tạo tài khoản. |
+| Python RBAC tests | `uv run --no-project --with-requirements requirements.txt python -m unittest discover -s tests -v` (chạy từ `app`): 11 tests passed trên SQLite trong bộ nhớ; không cần Docker. |
 | Patient CRUD browser check | Tạo và đọc lại duy nhất bản ghi thử `VALIDATION-*`; hủy hộp thoại xác nhận giữ bản ghi; xác nhận xóa chỉ xóa bản ghi thử; truy vấn đếm sau cùng xác nhận không còn bản ghi `VALIDATION-*`; bản ghi bệnh nhân có trước vẫn còn |
 | pgAdmin và PostgreSQL | pgAdmin `/misc/ping`: HTTP 200; server `ClinicCare PostgreSQL` dùng host `db`, database `clinicdb`, role `clinic_runtime`; đăng nhập PostgreSQL từ network/container pgAdmin bằng `APP_DB_PASSWORD` thành công. Giao diện pgAdmin vẫn cần nhập mật khẩu khi mở kết nối; ảnh cũ chưa chứng minh session database trong UI. |
 | Prometheus | `/-/healthy`: HTTP 200; API kiểm tra 6/6 targets `UP`, gồm job `nginx` |
@@ -350,7 +413,7 @@ trong khoảng thời gian chọn, nên kết quả rỗng không đồng nghĩa
 | `{container="clinic-management-app-1"}` | Loki API `status=success`, 1 stream trong cửa sổ 24 giờ |
 | `{container="clinic-management-nginx-1"} |= "error"` | Loki API `status=success`, không có dòng khớp trong cửa sổ 24 giờ |
 | `{container="clinic-management-db-1"} \|~ "(?i)error"` | Loki API `status=success`, 1 stream có 1 dòng khớp trong cửa sổ 24 giờ |
-| Loki Explore screenshots | Query app và kết quả logs đã chụp trong `evidence/08-loki-explore.png` và `evidence/09-loki-explore-results.png` |
+| Loki Explore screenshots | Query app và log Nginx trong `evidence/13-loki-explore-app.png` và `evidence/15-loki-nginx-logs.png` |
 | Nginx headers | `nosniff`, `DENY`, `strict-origin-when-cross-origin` và CSP đã nhận |
 | CSP delete confirmation | Static script cùng nguồn hoạt động; trình duyệt hiện hộp xác nhận, dismiss giữ nguyên bản ghi; script được tải HTTP 200 |
 | HTTPS | Chưa cấu hình; môi trường hiện không có OpenSSL để tạo cert PEM cục bộ |
@@ -519,26 +582,32 @@ password/token trong Git; `.env` đang bị ignore.
 
 ## Ảnh minh chứng cho báo cáo
 
-Ảnh trong `evidence/` được chụp từ giao diện local ngày 18/10/2026. Ảnh đăng
-nhập chỉ minh chứng trang đăng nhập dịch vụ quản trị đã được mở; ảnh
-authenticated/dashboard chứng minh trạng thái giao diện tương ứng, nhưng
-không chứng minh pgAdmin đã kết nối PostgreSQL:
+Thư mục `evidence/` chứa 18 ảnh minh chứng được cung cấp kèm báo cáo và sắp
+xếp theo thứ tự hình trong báo cáo. Ảnh 03 và 05 đã dùng bản che tên tài khoản,
+email và dữ liệu từng dòng trước khi đưa vào thư mục; ảnh 14 cũng đã loại bỏ
+chuỗi secret. Các ảnh là bằng chứng tại thời điểm chụp, không khẳng định trạng
+thái hiện tại của dịch vụ:
 
 | Ảnh | Minh chứng | Trạng thái |
 | --- | --- | --- |
-| `evidence/02-prometheus-targets.png` | Giao diện Prometheus targets | Ảnh cũ trước khi thêm Nginx Exporter (5/5); API hiện xác nhận 6/6 UP |
-| `evidence/03-pgadmin-login.png` | Trang login pgAdmin | Đã chụp |
-| `evidence/07-pgadmin-authenticated.png` | pgAdmin sau đăng nhập | Ảnh cũ, không chứng minh server PostgreSQL kết nối; cần chụp lại sau khi nhập `APP_DB_PASSWORD` |
-| `evidence/04-grafana-login.png` | Trang login Grafana | Đã chụp |
-| `evidence/06-cliniccare-dashboard.png` | Dashboard CPU/RAM host | Đã chụp trong browser |
-| `evidence/10-cliniccare-dashboard-current.png` | Dashboard trước khi có hai panel Nginx | Ảnh cũ có 7 panel; dashboard hiện có 9 panel; cAdvisor là cgroup Docker VM |
-| `evidence/08-loki-explore.png` | LogQL app selector trong Explore | Đã chụp |
-| `evidence/09-loki-explore-results.png` | Kết quả logs trong Explore | Đã chụp |
-| `docker compose ps` / Nginx headers | Chụp terminal hoặc DevTools | Chưa chụp riêng |
-
-Không dựng hoặc chỉnh sửa ảnh để thể hiện kết quả chưa có. Trước khi nộp, chụp
-pgAdmin sau khi đăng ký kết nối tới `db`, cùng Compose status và response
-headers; che dữ liệu cá nhân, email và credential.
+| `evidence/01-github-repository.png` | Repository ClinicCare trên GitHub | Ảnh 1 trong báo cáo |
+| `evidence/02-github-commit-history.png` | Lịch sử commit trên GitHub | Ảnh 2 trong báo cáo |
+| `evidence/03-cliniccare-dashboard.png` | Dashboard ClinicCare; tên tài khoản đã che | Ảnh 3 trong báo cáo |
+| `evidence/04-docker-compose-logs.png` | Docker Desktop/Compose logs | Ảnh 4 trong báo cáo |
+| `evidence/05-postgres-appointments-redacted.png` | Truy vấn appointments; dữ liệu từng dòng/email đã che | Ảnh 5 trong báo cáo |
+| `evidence/06-nginx-proxy-headers.png` | Cấu hình Nginx reverse proxy và security headers | Ảnh 6 trong báo cáo |
+| `evidence/07-http-response-headers.png` | Response headers trên HTTP local | Ảnh 7 trong báo cáo |
+| `evidence/08-cliniccare-devtools.png` | ClinicCare cùng DevTools/Network | Ảnh 8 trong báo cáo |
+| `evidence/09-prometheus-targets.png` | Prometheus Targets tại thời điểm chụp | Ảnh 9 trong báo cáo |
+| `evidence/10-grafana-overview.png` | Grafana ClinicCare Overview | Ảnh 10 trong báo cáo |
+| `evidence/11-grafana-prometheus-datasource.png` | Datasource Prometheus trên Grafana | Ảnh 11 trong báo cáo |
+| `evidence/12-grafana-cpu-alert-rule.png` | CPU alert rule và trạng thái thể hiện trong ảnh | Ảnh 12 trong báo cáo |
+| `evidence/13-loki-explore-app.png` | Loki Explore với selector cho app | Ảnh 13 trong báo cáo |
+| `evidence/14-postgres-exporter-error-redacted.png` | Lỗi postgres exporter; secret đã che | Ảnh 14 trong báo cáo |
+| `evidence/15-loki-nginx-logs.png` | Log Nginx trong Loki Explore | Ảnh 15 trong báo cáo |
+| `evidence/16-compose-hardening-grafana.png` | Compose hardening Grafana | Ảnh 16 trong báo cáo |
+| `evidence/17-docker-networks.png` | Docker networks thuộc phạm vi ClinicCare | Ảnh 17 trong báo cáo |
+| `evidence/18-app-nonroot-user.png` | App chạy với UID/GID 10001:10001 | Ảnh 18 trong báo cáo |
 
 Ghi thời gian, URL, lệnh và kết quả thực tế cạnh mỗi ảnh trong báo cáo nộp;
 không đưa thông tin định danh bệnh nhân hoặc credential vào ảnh.

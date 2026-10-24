@@ -9,16 +9,19 @@
     <p>Theo dõi hồ sơ và thông tin liên hệ của bệnh nhân.</p>
   </div>
   <div class="page-actions">
+    {% if current_user.role in ['Admin', 'Receptionist'] %}
     <a class="btn" href="#them-benh-nhan"><svg class="icon"><use href="#i-plus"/></svg>Thêm bệnh nhân</a>
+    {% endif %}
   </div>
 </section>
 
+{% if current_user.role in ['Admin', 'Receptionist'] %}
 <section class="data-panel" id="them-benh-nhan">
   <div class="data-panel-head">
     <div><h2>Thêm hồ sơ mới</h2><p>Thông tin có dấu * là bắt buộc.</p></div>
     <span class="badge">{{ patients|length }} hồ sơ</span>
   </div>
-  <form class="create-form" method="post" action="{{ url_for('patients') }}">
+  <form class="create-form" method="post" action="{{ url_for('create_patient') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <div class="form-grid">
       <div class="form-group">
@@ -53,10 +56,12 @@
           <td>
             <div class="table-actions">
               <button class="btn btn-icon" type="button" data-open-modal="edit-patient-{{ p.id }}" aria-label="Sửa hồ sơ {{ p.full_name }}" title="Sửa hồ sơ"><svg class="icon"><use href="#i-edit"/></svg></button>
+              {% if current_user.role == 'Admin' %}
               <form method="post" action="{{ url_for('delete_patient', patient_id=p.id) }}" data-confirm="Bạn có chắc muốn xóa hồ sơ bệnh nhân này?">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                 <button class="btn btn-icon danger" type="submit" aria-label="Xóa hồ sơ {{ p.full_name }}" title="Xóa hồ sơ"><svg class="icon"><use href="#i-trash"/></svg></button>
               </form>
+              {% endif %}
             </div>
           </td>
         </tr>
@@ -70,6 +75,7 @@
   <div class="table-footer"><span class="table-count" aria-live="polite"></span><div class="pagination" aria-label="Phân trang danh sách bệnh nhân"></div></div>
   {% endif %}
 </section>
+{% endif %}
 
 {% for p in patients %}
 <div class="modal-backdrop" id="edit-patient-{{ p.id }}" data-modal-backdrop>

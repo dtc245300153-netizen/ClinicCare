@@ -9,16 +9,19 @@
     <p>Thông tin đội ngũ và chuyên khoa đang hoạt động tại phòng khám.</p>
   </div>
   <div class="page-actions">
+    {% if current_user.role == 'Admin' %}
     <a class="btn" href="#them-bac-si"><svg class="icon"><use href="#i-plus"/></svg>Thêm bác sĩ</a>
+    {% endif %}
   </div>
 </section>
 
+{% if current_user.role == 'Admin' %}
 <section class="data-panel" id="them-bac-si">
   <div class="data-panel-head">
     <div><h2>Thêm thành viên mới</h2><p>Thông tin có dấu * là bắt buộc.</p></div>
     <span class="badge">{{ doctors|length }} bác sĩ</span>
   </div>
-  <form class="create-form" method="post" action="{{ url_for('doctors') }}">
+  <form class="create-form" method="post" action="{{ url_for('create_doctor') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <div class="form-grid">
       <div class="form-group">
@@ -70,7 +73,26 @@
   <div class="table-footer"><span class="table-count" aria-live="polite"></span><div class="pagination" aria-label="Phân trang danh sách bác sĩ"></div></div>
   {% endif %}
 </section>
+{% else %}
+<section class="data-panel">
+  <div class="data-panel-head"><div><h2>Danh sách bác sĩ</h2><p>Thông tin đội ngũ và chuyên khoa tại phòng khám.</p></div><span class="badge">{{ doctors|length }} bác sĩ</span></div>
+  <div class="table-wrapper">
+    <table data-page-size="8">
+      <thead><tr><th>Mã bác sĩ</th><th>Bác sĩ</th><th>Chuyên khoa</th><th>Điện thoại</th></tr></thead>
+      <tbody>
+        {% for d in doctors %}
+        <tr class="filter-row"><td><span class="table-id">BS-{{ "%04d"|format(d.id) }}</span></td><td><div class="person-cell"><div class="person-avatar doctor">{{ d.full_name[:1] }}</div><div><strong>{{ d.full_name }}</strong></div></div></td><td><span class="specialty-chip">{{ d.specialty }}</span></td><td>{{ d.phone or '—' }}</td></tr>
+        {% else %}
+        <tr><td colspan="4"><div class="empty-state"><strong>Chưa có bác sĩ</strong></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if doctors %}<div class="table-footer"><span class="table-count" aria-live="polite"></span><div class="pagination" aria-label="Phân trang danh sách bác sĩ"></div></div>{% endif %}
+</section>
+{% endif %}
 
+{% if current_user.role == 'Admin' %}
 {% for d in doctors %}
 <div class="modal-backdrop" id="edit-doctor-{{ d.id }}" data-modal-backdrop>
   <section class="modal" role="dialog" aria-modal="true" aria-labelledby="doctor-title-{{ d.id }}">
@@ -87,4 +109,5 @@
   </section>
 </div>
 {% endfor %}
+{% endif %}
 {% endblock %}

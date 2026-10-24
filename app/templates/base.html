@@ -44,15 +44,24 @@
           <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
             <svg class="icon"><use href="#i-grid"/></svg><span>Tổng quan</span>
           </a>
-          <a href="{{ url_for('patients') }}" class="nav-link {% if request.endpoint in ['patients', 'delete_patient', 'edit_patient'] %}active{% endif %}">
+          {% if current_user.role in ['Admin', 'Receptionist'] %}
+          <a href="{{ url_for('patients') }}" class="nav-link {% if request.endpoint in ['patients', 'create_patient', 'delete_patient', 'edit_patient'] %}active{% endif %}">
             <svg class="icon"><use href="#i-users"/></svg><span>Bệnh nhân</span>
           </a>
+          {% endif %}
+          {% if current_user.role in ['Admin', 'Receptionist'] %}
           <a href="{{ url_for('doctors') }}" class="nav-link {% if request.endpoint in ['doctors', 'delete_doctor', 'edit_doctor'] %}active{% endif %}">
             <svg class="icon"><use href="#i-stethoscope"/></svg><span>Bác sĩ</span>
           </a>
+          {% endif %}
           <a href="{{ url_for('appointments') }}" class="nav-link {% if request.endpoint in ['appointments', 'update_appointment_status', 'edit_appointment'] %}active{% endif %}">
             <svg class="icon"><use href="#i-calendar"/></svg><span>Lịch khám</span>
           </a>
+          {% if current_user.role == 'Admin' %}
+          <a href="{{ url_for('manage_users') }}" class="nav-link {% if request.endpoint in ['manage_users', 'create_user', 'update_user'] %}active{% endif %}">
+            <svg class="icon"><use href="#i-user-plus"/></svg><span>Tài khoản</span>
+          </a>
+          {% endif %}
         </nav>
 
         <div class="sidebar-bottom">
@@ -82,6 +91,13 @@
             <a class="icon-button notification-button" href="{{ url_for('appointments') }}" aria-label="Xem lịch khám">
               <svg class="icon"><use href="#i-bell"/></svg><span class="notification-dot"></span>
             </a>
+            <div class="user-menu">
+              <span class="user-identity"><strong>{{ current_user.full_name }}</strong><small>{{ {'Admin': 'Quản trị viên', 'Doctor': 'Bác sĩ', 'Receptionist': 'Lễ tân'}[current_user.role] }}</small></span>
+              <form method="post" action="{{ url_for('logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button class="btn btn-light logout-button" type="submit">Đăng xuất</button>
+              </form>
+            </div>
           </div>
         </header>
 

@@ -14,6 +14,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./database/02-create-runtime-roles.sql:/docker-entrypoint-initdb.d/02-create-runtime-roles.sql:ro
+      - ./database/03-add-user-auth.sql:/migrations/03-add-user-auth.sql:ro
     networks:
       - backend
     security_opt:

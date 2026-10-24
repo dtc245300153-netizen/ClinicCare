@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f4f7fb" />
+    <title>Đăng nhập · ClinicCare</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='cliniccare.css') }}" />
+  </head>
+  <body class="auth-page">
+    <main class="auth-card">
+      <a class="brand auth-brand" href="{{ url_for('login') }}" aria-label="ClinicCare">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+        <span class="brand-name">Clinic<span>Care</span><small>HỆ THỐNG QUẢN LÝ</small></span>
+      </a>
+      <div class="auth-heading"><div class="eyebrow">Chào mừng trở lại</div><h1>Đăng nhập</h1><p>Đăng nhập để tiếp tục vào hệ thống phòng khám.</p></div>
+      <div class="flash-stack" aria-live="polite">
+        {% for category, message in get_flashed_messages(with_categories=true) %}
+        <div class="alert {{ category }}" role="status"><span class="alert-symbol">!</span><span>{{ message }}</span></div>
+        {% endfor %}
+      </div>
+      <form method="post" action="{{ url_for('login', next=request.args.get('next')) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div class="form-group"><label for="username">Tên đăng nhập</label><input id="username" name="username" required maxlength="80" autocomplete="username" autofocus /></div>
+        <div class="form-group"><label for="password">Mật khẩu</label><input id="password" name="password" type="password" required autocomplete="current-password" /></div>
+        <button class="btn auth-submit" type="submit">Đăng nhập</button>
+      </form>
+      <p class="auth-footnote">Liên hệ quản trị viên nếu bạn chưa có tài khoản hoặc cần hỗ trợ.</p>
+    </main>
+  </body>
+</html>
